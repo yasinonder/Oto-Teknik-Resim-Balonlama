@@ -738,6 +738,7 @@ public partial class MainWindow : Window
             if (upper.HasValue && upper.Value < 0m)
                 throw new FormatException("Üst tolerans işaretli sapma olarak sıfır veya pozitif girilmelidir (örn. +0,10).");
 
+            item.DimensionText = DimensionTextBox.Text.Trim();
             item.Characteristic = CharacteristicTextBox.Text.Trim();
             item.NominalValue = NominalValueTextBox.Text.Trim();
             item.LowerTolerance = LowerToleranceTextBox.Text.Trim();
@@ -1168,7 +1169,7 @@ public partial class MainWindow : Window
 
         AddColumn("Sayfa", nameof(BalloonItem.PageNumber), 0.45, true);
         AddColumn("Balon", nameof(BalloonItem.Number), 0.45, true);
-        AddColumn("Çizimden okunan ölçü", nameof(BalloonItem.DimensionText), 1.35, true);
+        AddColumn("Çizimden okunan ölçü", nameof(BalloonItem.DimensionText), 1.35);
         AddColumn("Karakteristik", nameof(BalloonItem.Characteristic), 1.1);
         AddColumn("Nominal", nameof(BalloonItem.NominalValue), 0.7);
         AddColumn("Alt tol.", nameof(BalloonItem.LowerTolerance), 0.65);
