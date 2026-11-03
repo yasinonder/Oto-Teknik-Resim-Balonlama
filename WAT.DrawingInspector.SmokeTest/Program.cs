@@ -41,10 +41,9 @@ internal static class Program
             Console.WriteLine(
                 $"OCR dimension candidate smoke test passed: one reviewed candidate '{candidates[0].OcrText}' at %{candidates[0].Confidence:0} confidence.");
 
-            using (var visual = new DrawingVisual())
+            var visual = new DrawingVisual();
+            using (var drawing = visual.RenderOpen())
             {
-                using (var drawing = visual.RenderOpen())
-                {
                     drawing.DrawRectangle(Brushes.White, null, new Rect(0, 0, 1500, 600));
                     var typeface = new Typeface(
                         new FontFamily("Arial"),
@@ -65,9 +64,9 @@ internal static class Program
                     drawing.DrawText(dimensions[0], new Point(100, 65));
                     drawing.DrawText(dimensions[1], new Point(100, 235));
                     drawing.DrawText(dimensions[2], new Point(650, 65));
-                }
+            }
 
-                var bitmap = new RenderTargetBitmap(1500, 600, 96, 96, PixelFormats.Pbgra32);
+            var bitmap = new RenderTargetBitmap(1500, 600, 96, 96, PixelFormats.Pbgra32);
                 bitmap.Render(visual);
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
