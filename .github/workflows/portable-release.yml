@@ -1,0 +1,73 @@
+name: Publish portable Windows x64 ZIP
+
+on:
+  push:
+    branches: [ "wpf-ocr-foundation" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download pinned Turkish and English OCR models
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $revision = "923915d4ced2a7235221788285785a29c4a42d4a"
+          $tessdata = Join-Path $env:GITHUB_WORKSPACE "WAT.DrawingInspector\tessdata"
+          New-Item -ItemType Directory -Force -Path $tessdata | Out-Null
+          foreach ($language in @("eng", "tur")) {
+            $uri = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/$revision/$language.traineddata"
+            $destination = Join-Path $tessdata "$language.traineddata"
+            Invoke-WebRequest -Uri $uri -OutFile $destination
+            if ((Get-Item $destination).Length -lt 100000) {
+              throw "Tesseract model download is incomplete: $language"
+            }
+            Get-FileHash $destination -Algorithm SHA256
+          }
+
+      - name: Restore win-x64
+        run: dotnet restore .\WAT.DrawingInspector\WAT.DrawingInspector.csproj -r win-x64
+
+      - name: Publish self-contained x64 application
+        run: dotnet publish .\WAT.DrawingInspector\WAT.DrawingInspector.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore -p:UseAppHost=true -p:PublishTrimmed=false --output .\publish\app
+
+      - name: Assemble portable ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = Join-Path $env:GITHUB_WORKSPACE "publish\WAT-Teknik-Resim-Balonlama-win-x64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "publish\app\*") $stage -Recurse -Force
+          Copy-Item .\README.md $stage
+          Copy-Item .\THIRD-PARTY-NOTICES.md $stage
+          if (!(Test-Path (Join-Path $stage "WAT.DrawingInspector.exe"))) {
+            throw "WPF executable missing from publish output."
+          }
+          foreach ($language in @("eng", "tur")) {
+            if (!(Test-Path (Join-Path $stage "tessdata\$language.traineddata"))) {
+              throw "OCR language data missing from portable package: $language"
+            }
+          }
+          $zip = Join-Path $env:GITHUB_WORKSPACE "WAT-Teknik-Resim-Balonlama-win-x64.zip"
+          Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip -CompressionLevel Optimal
+          Get-Item $zip | Format-List Name,Length,FullName
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: WAT-Teknik-Resim-Balonlama-win-x64
+          path: WAT-Teknik-Resim-Balonlama-win-x64.zip
+          if-no-files-found: error
+          retention-days: 30
