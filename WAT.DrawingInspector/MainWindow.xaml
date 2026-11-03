@@ -19,6 +19,7 @@
      <Button Content="OCR Alanlarını Temizle" Click="ClearOcr_Click" Margin="3" Padding="10,7"/>
      <Button Content="Balonları Temizle" Click="Clear_Click" Margin="3" Padding="10,7"/>
      <Button Content="Excel Raporu" Click="ExportExcel_Click" Margin="3" Padding="10,7"/>
+     <Button Content="PDF Raporu" Click="ExportPdf_Click" Margin="3" Padding="10,7"/>
      <Button Content="CSV Dışa Aktar" Click="Export_Click" Margin="3" Padding="10,7"/>
     </StackPanel>
    </DockPanel>
