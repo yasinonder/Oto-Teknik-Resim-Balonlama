@@ -15,4 +15,9 @@
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="PDFsharp-MigraDoc-WPF" Version="6.2.4" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="tessdata\*.traineddata"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
