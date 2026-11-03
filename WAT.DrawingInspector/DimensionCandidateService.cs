@@ -12,7 +12,8 @@ public sealed record OcrDimensionCandidate(
     int Top,
     int Width,
     int Height,
-    float Confidence)
+    float Confidence,
+    string SuggestedTolerance = "")
 {
     public string DisplayText => OcrText;
     public string ConfidenceText => $"%{Confidence:0}";
@@ -20,13 +21,18 @@ public sealed record OcrDimensionCandidate(
 
 public static class DimensionCandidateService
 {
-    private static readonly Regex SingleDimensionPattern = new(
-        @"(?<![\p{L}\d])(?:Ø|ø|Φ|⌀|DIA|R|M)?\s*[+-]?\d{1,5}(?:[.,]\d{1,4})?(?:\s*(?:±|\+/-)\s*\d{1,4}(?:[.,]\d{1,4})?)?(?!\d)",
+    // Match a single dimension expression; ordinary note text is deliberately rejected.
+    private static readonly Regex DimensionPattern = new(
+        @"(?<![\\p{L}\\d])(?<prefix>Ø|ø|Φ|⌀|DIA|R|M)?\\s*(?<nominal>[+-]?\\d{1,5}(?:[.,]\\d{1,4})?)(?:\\s*(?:±|\\+/-)\\s*(?<tolerance>\\d{1,4}(?:[.,]\\d{1,4})?))?(?:\\s*(?:MM|CM|IN|INCH))?(?![\\d.,])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly Regex HarmlessRemainder = new(
+        @"[\\s\\p{P}\\p{S}]+",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static IReadOnlyList<OcrDimensionCandidate> FindCandidates(
         IEnumerable<OcrWord> words,
-        float minimumConfidence = 55f)
+        float minimumConfidence = 65f)
     {
         ArgumentNullException.ThrowIfNull(words);
         if (minimumConfidence is < 0 or > 100)
@@ -35,45 +41,48 @@ public static class DimensionCandidateService
         var candidates = new List<OcrDimensionCandidate>();
         foreach (var line in GroupIntoLines(words))
         {
-            var text = string.Join(" ", line.OrderBy(word => word.Left)
-                .Select(word => word.Text.Trim())
+            var ordered = line.OrderBy(word => word.Left).ToArray();
+            var text = string.Join(" ", ordered.Select(word => word.Text.Trim())
                 .Where(value => value.Length > 0));
-            var confidence = line.Average(word => word.Confidence);
-            if (confidence < minimumConfidence || text.Length == 0)
+            if (text.Length == 0 || text.Length > 90)
                 continue;
 
-            var matches = SingleDimensionPattern.Matches(text);
-            // Multiple numeric items in one OCR line are ambiguous (e.g. thread callouts
-            // and coordinate pairs). Leave them for manual review instead of guessing.
+            var confidence = ordered.Average(word => word.Confidence);
+            if (confidence < minimumConfidence)
+                continue;
+
+            var matches = DimensionPattern.Matches(text);
+            // Never infer one value from a note containing several dimensions/numbers.
             if (matches.Count != 1)
                 continue;
 
             var match = matches[0];
-            var matchedText = match.Value.Trim();
-            var suggestedValue = matchedText
-                .Replace("Ø", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("ø", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("Φ", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("⌀", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("DIA", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("R", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("M", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Trim();
+            var remainder = text.Remove(match.Index, match.Length);
+            remainder = HarmlessRemainder.Replace(remainder, string.Empty);
+            // Text such as "MAX 30" or "DIN EN 50347" is not a dimension callout.
+            if (remainder.Length != 0)
+                continue;
 
-            var toleranceIndex = suggestedValue.IndexOf('±');
-            if (toleranceIndex < 0)
-                toleranceIndex = suggestedValue.IndexOf("+/-", StringComparison.Ordinal);
-            if (toleranceIndex >= 0)
-                suggestedValue = suggestedValue[..toleranceIndex].Trim();
+            var nominal = match.Groups["nominal"].Value.Trim();
+            var tolerance = match.Groups["tolerance"].Value.Trim();
+            if (!IsPlausibleNumeric(nominal) ||
+                (tolerance.Length > 0 && !IsPlausibleNumeric(tolerance)))
+                continue;
 
-            var left = line.Min(word => word.Left);
-            var top = line.Min(word => word.Top);
-            var right = line.Max(word => word.Left + word.Width);
-            var bottom = line.Max(word => word.Top + word.Height);
+            var left = ordered.Min(word => word.Left);
+            var top = ordered.Min(word => word.Top);
+            var right = ordered.Max(word => word.Left + word.Width);
+            var bottom = ordered.Max(word => word.Top + word.Height);
 
             candidates.Add(new OcrDimensionCandidate(
-                text, suggestedValue, left, top, Math.Max(1, right - left),
-                Math.Max(1, bottom - top), confidence));
+                text,
+                nominal,
+                left,
+                top,
+                Math.Max(1, right - left),
+                Math.Max(1, bottom - top),
+                confidence,
+                tolerance));
         }
 
         return candidates
@@ -81,6 +90,11 @@ public static class DimensionCandidateService
             .ThenBy(candidate => candidate.Left)
             .ToArray();
     }
+
+    private static bool IsPlausibleNumeric(string value) =>
+        decimal.TryParse(value.Replace(',', '.'), System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var number) &&
+        number >= -100000m && number <= 100000m;
 
     private static List<List<OcrWord>> GroupIntoLines(IEnumerable<OcrWord> words)
     {
@@ -90,19 +104,37 @@ public static class DimensionCandidateService
                                   .OrderBy(item => item.Top + item.Height / 2.0)
                                   .ThenBy(item => item.Left))
         {
-            var centerY = word.Top + word.Height / 2.0;
-            var target = lines.FirstOrDefault(line =>
-            {
-                var lineCenter = line.Average(item => item.Top + item.Height / 2.0);
-                var lineHeight = line.Average(item => item.Height);
-                var tolerance = Math.Max(4.0, Math.Max(lineHeight, word.Height) * 0.55);
-                return Math.Abs(lineCenter - centerY) <= tolerance;
-            });
+            List<OcrWord>? bestLine = null;
+            var bestDistance = double.MaxValue;
 
-            if (target is null)
+            foreach (var line in lines)
+            {
+                var centers = line.Select(item => item.Top + item.Height / 2.0)
+                    .OrderBy(value => value).ToArray();
+                var center = centers[centers.Length / 2];
+                var heights = line.Select(item => (double)item.Height)
+                    .OrderBy(value => value).ToArray();
+                var medianHeight = heights[heights.Length / 2];
+                var currentCenter = word.Top + word.Height / 2.0;
+                var overlap = Math.Max(0,
+                    Math.Min(word.Top + word.Height, line.Max(item => item.Top + item.Height)) -
+                    Math.Max(word.Top, line.Min(item => item.Top)));
+                var overlapRatio = overlap / Math.Max(1.0, Math.Min(word.Height, medianHeight));
+                var distance = Math.Abs(center - currentCenter);
+                var aligned = overlapRatio >= 0.25 ||
+                              distance <= Math.Max(2.5, Math.Min(word.Height, medianHeight) * 0.28);
+
+                if (aligned && distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestLine = line;
+                }
+            }
+
+            if (bestLine is null)
                 lines.Add(new List<OcrWord> { word });
             else
-                target.Add(word);
+                bestLine.Add(word);
         }
 
         return lines;
