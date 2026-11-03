@@ -16,6 +16,7 @@ namespace WAT.DrawingInspector;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<BalloonItem> _balloons = new();
+    private readonly ObservableCollection<OcrDimensionCandidate> _dimensionCandidates = new();
     private readonly Dictionary<int, List<BalloonItem>> _pdfPageBalloons = new();
     private readonly Dictionary<int, int> _pdfPageNextNumbers = new();
     private readonly Dictionary<BalloonItem, Border> _balloonVisuals = new();
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         BalloonList.ItemsSource = _balloons;
+        DimensionCandidateList.ItemsSource = _dimensionCandidates;
         LoadMeasurementEditor(null);
         UpdatePdfControls();
     }
@@ -317,6 +319,7 @@ public partial class MainWindow : Window
         BalloonCanvas.Width = bitmap.PixelWidth;
         BalloonCanvas.Height = bitmap.PixelHeight;
         OcrCanvas.Children.Clear();
+        _dimensionCandidates.Clear();
         BalloonCanvas.Children.Clear();
         _balloonVisuals.Clear();
     }
@@ -700,7 +703,11 @@ public partial class MainWindow : Window
         {
             var imagePath = _imagePath;
             var words = await Task.Run(() => OcrService.ReadWords(imagePath));
+            var candidates = DimensionCandidateService.FindCandidates(words);
             OcrCanvas.Children.Clear();
+            _dimensionCandidates.Clear();
+            foreach (var candidate in candidates)
+                _dimensionCandidates.Add(candidate);
 
             foreach (var word in words)
             {
@@ -734,8 +741,48 @@ public partial class MainWindow : Window
                 OcrCanvas.Children.Add(label);
             }
 
+            foreach (var candidate in candidates)
+            {
+                var candidateRect = new System.Windows.Shapes.Rectangle
+                {
+                    Width = Math.Max(1, candidate.Width),
+                    Height = Math.Max(1, candidate.Height),
+                    Stroke = Brushes.OrangeRed,
+                    StrokeThickness = 2,
+                    StrokeDashArray = new DoubleCollection { 3, 2 },
+                    Fill = new SolidColorBrush(Color.FromArgb(28, 255, 140, 0))
+                };
+                Canvas.SetLeft(candidateRect, candidate.Left);
+                Canvas.SetTop(candidateRect, candidate.Top);
+                OcrCanvas.Children.Add(candidateRect);
+
+                var candidateLabel = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(225, 150, 65, 0)),
+                    Padding = new Thickness(3, 1, 3, 1),
+                    Child = new TextBlock
+                    {
+                        Text = $"ÖLÇÜ ADAYI • %{candidate.Confidence:0}",
+                        Foreground = Brushes.White,
+                        FontSize = 10,
+                        FontWeight = FontWeights.Bold
+                    }
+                };
+                Canvas.SetLeft(candidateLabel, candidate.Left);
+                Canvas.SetTop(candidateLabel, Math.Max(0, candidate.Top - 19));
+                OcrCanvas.Children.Add(candidateLabel);
+            }
+
+            var candidateReport = candidates.Count == 0
+                ? "Ölçü formatına benzeyen, tek değer içeren güvenilir OCR satırı bulunamadı."
+                : string.Join(Environment.NewLine, candidates.Select(candidate =>
+                    $"{candidate.OcrText} | Öneri: {candidate.SuggestedValue} | Güven:%{candidate.Confidence:0}"));
+
             var report = string.Join(Environment.NewLine,
                 words.Select(w => $"{w.Text} | X:{w.Left} Y:{w.Top} W:{w.Width} H:{w.Height} | Güven:%{w.Confidence:F0}"));
+
+            report += Environment.NewLine + Environment.NewLine +
+                $"ÖLÇÜ ADAYLARI ({candidates.Count})" + Environment.NewLine + candidateReport;
             var resultWindow = new Window
             {
                 Title = $"OCR Sonuçları — {words.Count} kelime",
@@ -754,7 +801,7 @@ public partial class MainWindow : Window
                 }
             };
             resultWindow.ShowDialog();
-            StatusText.Text = $"OCR tamamlandı: {words.Count} kelime için çizim üzerinde konum kutuları gösteriliyor.";
+            StatusText.Text = $"OCR tamamlandı: {words.Count} kelime, {candidates.Count} ölçü adayı. Adayları kontrol edip balon ekleyin.";
         }
         catch (Exception ex)
         {
@@ -793,10 +840,51 @@ public partial class MainWindow : Window
         PdfNextButton.IsEnabled = !_isBusy && _pdfPageIndex < _pdfPageCount - 1;
     }
 
+    private void AddSelectedDimensionCandidate_Click(object sender, RoutedEventArgs e)
+    {
+        if (DimensionCandidateList.SelectedItem is not OcrDimensionCandidate candidate)
+        {
+            StatusText.Text = "Balon eklemek için önce OCR ölçü adaylarından birini seçin.";
+            return;
+        }
+
+        if (BalloonCanvas.Width <= 30 || BalloonCanvas.Height <= 30)
+        {
+            StatusText.Text = "Önce geçerli bir çizim açın.";
+            return;
+        }
+
+        var centerY = candidate.Top + candidate.Height / 2.0;
+        var rightPosition = candidate.Left + candidate.Width + 34.0;
+        var x = rightPosition <= BalloonCanvas.Width - 16
+            ? rightPosition
+            : Math.Max(16.0, candidate.Left - 34.0);
+        var y = Math.Clamp(centerY, 16.0, BalloonCanvas.Height - 16.0);
+
+        var item = new BalloonItem
+        {
+            Number = _nextNumber++,
+            X = Math.Round(x, 1),
+            Y = Math.Round(y, 1),
+            Characteristic = "OCR ölçü adayı - doğrula",
+            Notes = $"OCR metni: {candidate.OcrText}; güven: %{candidate.Confidence:0}. " +
+                "Nominal değer ve tolerans kullanıcı tarafından doğrulanmalıdır."
+        };
+
+        _balloons.Add(item);
+        DrawBalloon(item);
+        BalloonList.SelectedItem = item;
+        if (_pdfPath is not null)
+            SaveCurrentPdfAnnotations();
+
+        StatusText.Text = $"OCR adayı balon {item.Number} olarak eklendi. OCR metni nominal değer olarak kabul edilmedi; lütfen doğrulayın.";
+    }
+
     private void ClearOcr_Click(object sender, RoutedEventArgs e)
     {
         OcrCanvas.Children.Clear();
-        StatusText.Text = "OCR konum kutuları temizlendi.";
+        _dimensionCandidates.Clear();
+        StatusText.Text = "OCR konum kutuları ve ölçü adayları temizlendi.";
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
