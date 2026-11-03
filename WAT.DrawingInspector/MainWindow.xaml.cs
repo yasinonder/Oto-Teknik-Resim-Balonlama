@@ -1,8 +1,10 @@
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,6 +18,11 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<BalloonItem> _balloons = new();
     private readonly Dictionary<int, List<BalloonItem>> _pdfPageBalloons = new();
     private readonly Dictionary<int, int> _pdfPageNextNumbers = new();
+    private readonly Dictionary<BalloonItem, Border> _balloonVisuals = new();
+
+    private BalloonItem? _draggedBalloon;
+    private Border? _draggedVisual;
+    private Point _dragGrabOffset;
 
     private int _nextNumber = 1;
     private string? _imagePath;
@@ -162,6 +169,7 @@ public partial class MainWindow : Window
         BalloonCanvas.Height = bitmap.PixelHeight;
         OcrCanvas.Children.Clear();
         BalloonCanvas.Children.Clear();
+        _balloonVisuals.Clear();
     }
 
     private static BitmapImage LoadBitmap(byte[] bytes)
@@ -202,6 +210,8 @@ public partial class MainWindow : Window
         _nextNumber = 1;
         OcrCanvas.Children.Clear();
         BalloonCanvas.Children.Clear();
+        _balloonVisuals.Clear();
+        BalloonList.SelectedItem = null;
     }
 
     private void SaveCurrentPdfAnnotations()
@@ -262,11 +272,16 @@ public partial class MainWindow : Window
         {
             Width = 30,
             Height = 30,
+            Tag = item,
+            Cursor = Cursors.SizeAll,
             CornerRadius = new CornerRadius(15),
             Background = Brushes.White,
             BorderBrush = Brushes.DarkRed,
             BorderThickness = new Thickness(2)
         };
+        bubble.MouseLeftButtonDown += Balloon_MouseLeftButtonDown;
+        bubble.MouseMove += Balloon_MouseMove;
+        bubble.MouseLeftButtonUp += Balloon_MouseLeftButtonUp;
         bubble.Child = new TextBlock
         {
             Text = item.Number.ToString(CultureInfo.InvariantCulture),
@@ -280,6 +295,92 @@ public partial class MainWindow : Window
         Canvas.SetLeft(bubble, item.X - 15);
         Canvas.SetTop(bubble, item.Y - 15);
         BalloonCanvas.Children.Add(bubble);
+        _balloonVisuals[item] = bubble;
+        UpdateBalloonSelectionVisuals();
+    }
+
+    private void Balloon_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border bubble || bubble.Tag is not BalloonItem item)
+            return;
+
+        _draggedBalloon = item;
+        _draggedVisual = bubble;
+        _dragGrabOffset = e.GetPosition(bubble);
+        BalloonList.SelectedItem = item;
+        bubble.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void Balloon_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_draggedBalloon is null || _draggedVisual is null ||
+            !_draggedVisual.IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed)
+            return;
+
+        var point = e.GetPosition(BalloonCanvas);
+        var left = Math.Clamp(point.X - _dragGrabOffset.X, 0,
+            Math.Max(0, BalloonCanvas.Width - _draggedVisual.Width));
+        var top = Math.Clamp(point.Y - _dragGrabOffset.Y, 0,
+            Math.Max(0, BalloonCanvas.Height - _draggedVisual.Height));
+
+        Canvas.SetLeft(_draggedVisual, left);
+        Canvas.SetTop(_draggedVisual, top);
+        _draggedBalloon.X = Math.Round(left + _draggedVisual.Width / 2, 1);
+        _draggedBalloon.Y = Math.Round(top + _draggedVisual.Height / 2, 1);
+        e.Handled = true;
+    }
+
+    private void Balloon_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_draggedVisual is null)
+            return;
+
+        _draggedVisual.ReleaseMouseCapture();
+        _draggedVisual = null;
+        _draggedBalloon = null;
+
+        if (_pdfPath is not null)
+            SaveCurrentPdfAnnotations();
+
+        StatusText.Text = "Balon konumu güncellendi.";
+        e.Handled = true;
+    }
+
+    private void BalloonList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateBalloonSelectionVisuals();
+    }
+
+    private void UpdateBalloonSelectionVisuals()
+    {
+        var selected = BalloonList.SelectedItem as BalloonItem;
+        foreach (var pair in _balloonVisuals)
+        {
+            var isSelected = ReferenceEquals(pair.Key, selected);
+            pair.Value.BorderBrush = isSelected ? Brushes.DodgerBlue : Brushes.DarkRed;
+            pair.Value.Background = isSelected ? Brushes.AliceBlue : Brushes.White;
+        }
+    }
+
+    private void DeleteSelectedBalloon_Click(object sender, RoutedEventArgs e)
+    {
+        if (BalloonList.SelectedItem is not BalloonItem selected)
+        {
+            StatusText.Text = "Silmek için önce balon listesinden bir balon seçin.";
+            return;
+        }
+
+        if (_balloonVisuals.Remove(selected, out var visual))
+            BalloonCanvas.Children.Remove(visual);
+
+        _balloons.Remove(selected);
+        BalloonList.SelectedItem = null;
+
+        if (_pdfPath is not null)
+            SaveCurrentPdfAnnotations();
+
+        StatusText.Text = $"Balon {selected.Number} silindi.";
     }
 
     private async void Ocr_Click(object sender, RoutedEventArgs e)
@@ -398,6 +499,8 @@ public partial class MainWindow : Window
     {
         _balloons.Clear();
         BalloonCanvas.Children.Clear();
+        _balloonVisuals.Clear();
+        BalloonList.SelectedItem = null;
         _nextNumber = 1;
         if (_pdfPath is not null)
             SaveCurrentPdfAnnotations();
@@ -438,9 +541,38 @@ public partial class MainWindow : Window
     }
 }
 
-public sealed class BalloonItem
+public sealed class BalloonItem : INotifyPropertyChanged
 {
-    public int Number { get; set; }
-    public double X { get; set; }
-    public double Y { get; set; }
+    private int _number;
+    private double _x;
+    private double _y;
+
+    public int Number
+    {
+        get => _number;
+        set => SetField(ref _number, value);
+    }
+
+    public double X
+    {
+        get => _x;
+        set => SetField(ref _x, value);
+    }
+
+    public double Y
+    {
+        get => _y;
+        set => SetField(ref _y, value);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+            return;
+
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }
