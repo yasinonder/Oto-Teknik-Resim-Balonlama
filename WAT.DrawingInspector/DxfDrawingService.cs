@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using IxMilia.Dxf;
+using IxMilia.Dxf.Blocks;
 using IxMilia.Dxf.Entities;
 
 namespace WAT.DrawingInspector;
@@ -29,82 +30,230 @@ public sealed record DxfRenderResult(byte[] PngBytes, int PixelWidth, int PixelH
 
 public static class DxfDrawingService
 {
+    private const int MaxBlockDepth = 8;
+    private const int MaxBlockArrayRowsOrColumns = 32;
+
     public static DxfScene LoadScene(string path)
     {
         var file = DxfFile.Load(path);
-        var bounds = file.GetBoundingBox();
-        var scene = new DxfScene
-        {
-            MinX = bounds.MinimumPoint.X,
-            MinY = bounds.MinimumPoint.Y,
-            MaxX = bounds.MaximumPoint.X,
-            MaxY = bounds.MaximumPoint.Y
-        };
+        var blocks = file.Blocks
+            .GroupBy(block => block.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var scene = new DxfScene();
+        var blockStack = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entity in file.Entities)
-        {
-            switch (entity)
-            {
-                case DxfLine line:
-                    scene.Primitives.Add(new DxfLinePrimitive(
-                        line.P1.X, line.P1.Y, line.P2.X, line.P2.Y));
-                    scene.SupportedEntityCount++;
-                    break;
-
-                case DxfArc arc:
-                    scene.Primitives.Add(new DxfArcPrimitive(
-                        arc.Center.X, arc.Center.Y, arc.Radius, arc.StartAngle, arc.EndAngle));
-                    scene.SupportedEntityCount++;
-                    break;
-
-                case DxfCircle circle:
-                    scene.Primitives.Add(new DxfCirclePrimitive(
-                        circle.Center.X, circle.Center.Y, Math.Abs(circle.Radius)));
-                    scene.SupportedEntityCount++;
-                    break;
-
-                case DxfLwPolyline polyline:
-                    foreach (var part in polyline.AsSimpleEntities())
-                        AddSimpleEntity(scene, part);
-                    scene.SupportedEntityCount++;
-                    break;
-
-                case DxfPolyline polyline:
-                    foreach (var part in polyline.AsSimpleEntities())
-                        AddSimpleEntity(scene, part);
-                    scene.SupportedEntityCount++;
-                    break;
-
-                case DxfText text:
-                    scene.Primitives.Add(new DxfTextPrimitive(
-                        text.Location.X, text.Location.Y, text.Value,
-                        Math.Max(0.1, Math.Abs(text.TextHeight)), text.Rotation));
-                    scene.SupportedEntityCount++;
-                    break;
-
-                default:
-                    scene.UnsupportedEntityCount++;
-                    break;
-            }
-        }
+            ProcessEntity(scene, entity, DxfTransform.Identity, blocks, blockStack, depth: 0);
 
         if (scene.Primitives.Count == 0)
-            throw new InvalidDataException("DXF dosyasında bu sürümün görüntüleyebildiği LINE, CIRCLE, ARC, POLYLINE veya TEXT geometrisi bulunamadı.");
+            throw new InvalidDataException("DXF dosyasında bu sürümün görüntüleyebildiği 2B geometri veya yazı bulunamadı.");
 
         ExpandBoundsForPrimitives(scene);
         return scene;
     }
 
-    private static void AddSimpleEntity(DxfScene scene, DxfEntity entity)
+    private static void ProcessEntity(
+        DxfScene scene,
+        DxfEntity entity,
+        DxfTransform transform,
+        IReadOnlyDictionary<string, DxfBlock> blocks,
+        HashSet<string> blockStack,
+        int depth,
+        bool countAsEntity = true)
     {
         switch (entity)
         {
             case DxfLine line:
-                scene.Primitives.Add(new DxfLinePrimitive(line.P1.X, line.P1.Y, line.P2.X, line.P2.Y));
+            {
+                var p1 = transform.Transform(line.P1.X, line.P1.Y);
+                var p2 = transform.Transform(line.P2.X, line.P2.Y);
+                scene.Primitives.Add(new DxfLinePrimitive(p1.X, p1.Y, p2.X, p2.Y));
+                if (countAsEntity) scene.SupportedEntityCount++;
                 break;
+            }
+
             case DxfArc arc:
-                scene.Primitives.Add(new DxfArcPrimitive(arc.Center.X, arc.Center.Y, arc.Radius, arc.StartAngle, arc.EndAngle));
+                AddArc(scene, arc, transform);
+                if (countAsEntity) scene.SupportedEntityCount++;
                 break;
+
+            case DxfCircle circle:
+                AddCircle(scene, circle, transform);
+                if (countAsEntity) scene.SupportedEntityCount++;
+                break;
+
+            case DxfLwPolyline polyline:
+            {
+                var before = scene.Primitives.Count;
+                foreach (var part in polyline.AsSimpleEntities())
+                    ProcessEntity(scene, part, transform, blocks, blockStack, depth, countAsEntity: false);
+
+                if (countAsEntity)
+                {
+                    if (scene.Primitives.Count > before) scene.SupportedEntityCount++;
+                    else scene.UnsupportedEntityCount++;
+                }
+                break;
+            }
+
+            case DxfPolyline polyline:
+            {
+                var before = scene.Primitives.Count;
+                foreach (var part in polyline.AsSimpleEntities())
+                    ProcessEntity(scene, part, transform, blocks, blockStack, depth, countAsEntity: false);
+
+                if (countAsEntity)
+                {
+                    if (scene.Primitives.Count > before) scene.SupportedEntityCount++;
+                    else scene.UnsupportedEntityCount++;
+                }
+                break;
+            }
+
+            case DxfText text:
+            {
+                var position = transform.Transform(text.Location.X, text.Location.Y);
+                var angle = text.Rotation * Math.PI / 180.0;
+                var direction = transform.TransformVector(Math.Cos(angle), Math.Sin(angle));
+                var rotation = Math.Atan2(direction.Y, direction.X) * 180.0 / Math.PI;
+                var height = Math.Max(0.1, Math.Abs(text.TextHeight) * transform.ScaleY);
+                scene.Primitives.Add(new DxfTextPrimitive(position.X, position.Y, text.Value, height, rotation));
+                if (countAsEntity) scene.SupportedEntityCount++;
+                break;
+            }
+
+            case DxfInsert insert:
+                ProcessInsert(scene, insert, transform, blocks, blockStack, depth);
+                break;
+
+            default:
+                if (countAsEntity) scene.UnsupportedEntityCount++;
+                break;
+        }
+    }
+
+    private static void ProcessInsert(
+        DxfScene scene,
+        DxfInsert insert,
+        DxfTransform parentTransform,
+        IReadOnlyDictionary<string, DxfBlock> blocks,
+        HashSet<string> blockStack,
+        int depth)
+    {
+        if (depth >= MaxBlockDepth || string.IsNullOrWhiteSpace(insert.Name) ||
+            !blocks.TryGetValue(insert.Name, out var block) ||
+            !blockStack.Add(block.Name))
+        {
+            scene.UnsupportedEntityCount++;
+            return;
+        }
+
+        try
+        {
+            var originalRows = Math.Max(1, (int)insert.RowCount);
+            var originalColumns = Math.Max(1, (int)insert.ColumnCount);
+            var rows = Math.Min(originalRows, MaxBlockArrayRowsOrColumns);
+            var columns = Math.Min(originalColumns, MaxBlockArrayRowsOrColumns);
+            if (rows != originalRows || columns != originalColumns)
+                scene.UnsupportedEntityCount++;
+
+            var angle = insert.Rotation * Math.PI / 180.0;
+            var cos = Math.Cos(angle);
+            var sin = Math.Sin(angle);
+            var sx = insert.XScaleFactor;
+            var sy = insert.YScaleFactor;
+
+            var m11 = cos * sx;
+            var m12 = -sin * sy;
+            var m21 = sin * sx;
+            var m22 = cos * sy;
+
+            for (var row = 0; row < rows; row++)
+            {
+                for (var column = 0; column < columns; column++)
+                {
+                    var localX = column * insert.ColumnSpacing - block.BasePoint.X;
+                    var localY = row * insert.RowSpacing - block.BasePoint.Y;
+
+                    var dx = insert.Location.X + m11 * localX + m12 * localY;
+                    var dy = insert.Location.Y + m21 * localX + m22 * localY;
+
+                    var insertTransform = new DxfTransform(
+                        m11, m12, m21, m22, dx, dy);
+                    var worldTransform = parentTransform.Compose(insertTransform);
+
+                    foreach (var child in block.Entities)
+                    {
+                        ProcessEntity(scene, child, worldTransform, blocks, blockStack, depth + 1);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            blockStack.Remove(block.Name);
+        }
+    }
+
+    private static void AddCircle(DxfScene scene, DxfCircle circle, DxfTransform transform)
+    {
+        var center = transform.Transform(circle.Center.X, circle.Center.Y);
+        var radius = Math.Abs(circle.Radius);
+
+        if (transform.IsUniformScale)
+        {
+            scene.Primitives.Add(new DxfCirclePrimitive(
+                center.X, center.Y, radius * transform.UniformScale));
+            return;
+        }
+
+        AddCurveAsLines(scene, 0, 360, angle =>
+        {
+            var radians = angle * Math.PI / 180.0;
+            return transform.Transform(
+                circle.Center.X + radius * Math.Cos(radians),
+                circle.Center.Y + radius * Math.Sin(radians));
+        });
+    }
+
+    private static void AddArc(DxfScene scene, DxfArc arc, DxfTransform transform)
+    {
+        if (transform.IsIdentity)
+        {
+            scene.Primitives.Add(new DxfArcPrimitive(
+                arc.Center.X, arc.Center.Y, Math.Abs(arc.Radius),
+                arc.StartAngle, arc.EndAngle));
+            return;
+        }
+
+        var end = arc.EndAngle;
+        if (end <= arc.StartAngle) end += 360.0;
+        AddCurveAsLines(scene, arc.StartAngle, end, angle =>
+        {
+            var radians = angle * Math.PI / 180.0;
+            return transform.Transform(
+                arc.Center.X + arc.Radius * Math.Cos(radians),
+                arc.Center.Y + arc.Radius * Math.Sin(radians));
+        });
+    }
+
+    private static void AddCurveAsLines(
+        DxfScene scene,
+        double startAngle,
+        double endAngle,
+        Func<double, DxfPoint2> pointAtAngle)
+    {
+        var sweep = endAngle - startAngle;
+        var steps = Math.Clamp((int)Math.Ceiling(Math.Abs(sweep) / 4.0), 8, 180);
+        var previous = pointAtAngle(startAngle);
+
+        for (var i = 1; i <= steps; i++)
+        {
+            var current = pointAtAngle(startAngle + sweep * i / steps);
+            scene.Primitives.Add(new DxfLinePrimitive(
+                previous.X, previous.Y, current.X, current.Y));
+            previous = current;
         }
     }
 
@@ -130,11 +279,14 @@ public static class DxfDrawingService
                     Add(line.X1, line.Y1);
                     Add(line.X2, line.Y2);
                     break;
+
                 case DxfCirclePrimitive circle:
                     Add(circle.X - circle.Radius, circle.Y - circle.Radius);
                     Add(circle.X + circle.Radius, circle.Y + circle.Radius);
                     break;
+
                 case DxfArcPrimitive arc:
+                {
                     var end = arc.EndAngle;
                     if (end <= arc.StartAngle) end += 360.0;
                     var steps = Math.Max(2, (int)Math.Ceiling((end - arc.StartAngle) / 5.0));
@@ -144,6 +296,8 @@ public static class DxfDrawingService
                         Add(arc.X + arc.Radius * Math.Cos(angle), arc.Y + arc.Radius * Math.Sin(angle));
                     }
                     break;
+                }
+
                 case DxfTextPrimitive text:
                     Add(text.X, text.Y);
                     break;
@@ -198,7 +352,7 @@ public static class DxfDrawingService
                         break;
 
                     case DxfArcPrimitive arc:
-                        DrawArc(dc, pen, arc, Map, scale);
+                        DrawArc(dc, pen, arc, Map);
                         break;
 
                     case DxfTextPrimitive text:
@@ -233,7 +387,7 @@ public static class DxfDrawingService
     }
 
     private static void DrawArc(DrawingContext dc, Pen pen, DxfArcPrimitive arc,
-        Func<double, double, Point> map, double scale)
+        Func<double, double, Point> map)
     {
         var end = arc.EndAngle;
         if (end <= arc.StartAngle) end += 360.0;
@@ -257,5 +411,39 @@ public static class DxfDrawingService
         }
         geometry.Freeze();
         dc.DrawGeometry(null, pen, geometry);
+    }
+
+    private readonly record struct DxfPoint2(double X, double Y);
+
+    private readonly record struct DxfTransform(
+        double M11, double M12, double M21, double M22, double DX, double DY)
+    {
+        public static DxfTransform Identity => new(1, 0, 0, 1, 0, 0);
+
+        public bool IsIdentity =>
+            M11 == 1 && M12 == 0 && M21 == 0 && M22 == 1 && DX == 0 && DY == 0;
+
+        public double ScaleX => Math.Sqrt(M11 * M11 + M21 * M21);
+        public double ScaleY => Math.Sqrt(M12 * M12 + M22 * M22);
+        public double UniformScale => (ScaleX + ScaleY) * 0.5;
+
+        public bool IsUniformScale =>
+            Math.Abs(ScaleX - ScaleY) < 1e-8 &&
+            Math.Abs(M11 * M12 + M21 * M22) < 1e-8;
+
+        public DxfPoint2 Transform(double x, double y) =>
+            new(M11 * x + M12 * y + DX, M21 * x + M22 * y + DY);
+
+        public DxfPoint2 TransformVector(double x, double y) =>
+            new(M11 * x + M12 * y, M21 * x + M22 * y);
+
+        public DxfTransform Compose(DxfTransform child) =>
+            new(
+                M11 * child.M11 + M12 * child.M21,
+                M11 * child.M12 + M12 * child.M22,
+                M21 * child.M11 + M22 * child.M21,
+                M21 * child.M12 + M22 * child.M22,
+                M11 * child.DX + M12 * child.DY + DX,
+                M21 * child.DX + M22 * child.DY + DY);
     }
 }
