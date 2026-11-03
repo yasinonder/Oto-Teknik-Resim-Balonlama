@@ -10,7 +10,13 @@ public static class OcrService
         var tessdata = Path.Combine(AppContext.BaseDirectory, "tessdata");
         if (!Directory.Exists(tessdata))
             throw new DirectoryNotFoundException(
-                "tessdata klasörü bulunamadı. tur.traineddata ve eng.traineddata dosyalarını tessdata içine ekleyin.");
+                "tessdata klasörü bulunamadı. tools/Download-Tessdata.ps1 betiğini çalıştırın.");
+
+        var turkishModel = Path.Combine(tessdata, "tur.traineddata");
+        var englishModel = Path.Combine(tessdata, "eng.traineddata");
+        if (!File.Exists(turkishModel) || !File.Exists(englishModel))
+            throw new FileNotFoundException(
+                "Türkçe ve İngilizce OCR modelleri eksik. tools/Download-Tessdata.ps1 betiğini çalıştırın.");
 
         // Official tessdata_fast models support the LSTM OCR engine only.
         using var engine = new TesseractEngine(tessdata, "tur+eng", EngineMode.LstmOnly);
