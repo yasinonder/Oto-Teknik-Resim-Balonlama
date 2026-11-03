@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 
 namespace WAT.DrawingInspector;
 
@@ -38,13 +39,19 @@ public partial class MainWindow : Window
             bmp.CacheOption = BitmapCacheOption.OnLoad;
             bmp.UriSource = new Uri(dlg.FileName);
             bmp.EndInit();
+
             DrawingImage.Source = bmp;
+            DrawingImage.Width = bmp.PixelWidth;
+            DrawingImage.Height = bmp.PixelHeight;
             DrawingSurface.Width = bmp.PixelWidth;
             DrawingSurface.Height = bmp.PixelHeight;
+            OcrCanvas.Width = bmp.PixelWidth;
+            OcrCanvas.Height = bmp.PixelHeight;
             BalloonCanvas.Width = bmp.PixelWidth;
             BalloonCanvas.Height = bmp.PixelHeight;
+            OcrCanvas.Children.Clear();
             _imagePath = dlg.FileName;
-            StatusText.Text = $"{Path.GetFileName(dlg.FileName)} açıldı ({bmp.PixelWidth} × {bmp.PixelHeight}).";
+            StatusText.Text = $"{Path.GetFileName(dlg.FileName)} açıldı ({bmp.PixelWidth} × {bmp.PixelHeight}). Görüntü koordinatları piksel bazındadır.";
         }
         catch (Exception ex)
         {
@@ -91,7 +98,7 @@ public partial class MainWindow : Window
         Canvas.SetLeft(bubble, x - 15);
         Canvas.SetTop(bubble, y - 15);
         BalloonCanvas.Children.Add(bubble);
-        StatusText.Text = $"Balon {item.Number} eklendi. Koordinatlar piksel cinsindendir.";
+        StatusText.Text = $"Balon {item.Number} eklendi. Koordinatlar görüntü piksel koordinatıdır.";
     }
 
     private async void Ocr_Click(object sender, RoutedEventArgs e)
@@ -104,32 +111,75 @@ public partial class MainWindow : Window
 
         try
         {
-            StatusText.Text = "OCR çalışıyor...";
-            var text = await Task.Run(() => OcrService.Read(_imagePath));
+            StatusText.Text = "OCR metinleri ve konum kutuları algılanıyor...";
+            var words = await Task.Run(() => OcrService.ReadWords(_imagePath));
+            OcrCanvas.Children.Clear();
+
+            foreach (var word in words)
+            {
+                var rect = new Rectangle
+                {
+                    Width = Math.Max(1, word.Width),
+                    Height = Math.Max(1, word.Height),
+                    Stroke = Brushes.LimeGreen,
+                    StrokeThickness = 1.5,
+                    Fill = new SolidColorBrush(Color.FromArgb(24, 50, 205, 50))
+                };
+                Canvas.SetLeft(rect, word.Left);
+                Canvas.SetTop(rect, word.Top);
+                OcrCanvas.Children.Add(rect);
+
+                var label = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(220, 20, 80, 50)),
+                    Padding = new Thickness(2, 0, 2, 0),
+                    Child = new TextBlock
+                    {
+                        Text = word.Text,
+                        Foreground = Brushes.White,
+                        FontSize = 10,
+                        MaxWidth = 220,
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    }
+                };
+                Canvas.SetLeft(label, word.Left);
+                Canvas.SetTop(label, Math.Max(0, word.Top - 16));
+                OcrCanvas.Children.Add(label);
+            }
+
+            var report = string.Join(Environment.NewLine,
+                words.Select(w => $"{w.Text} | X:{w.Left} Y:{w.Top} G:{w.Width} Y:{w.Height} | Güven:%{w.Confidence:F0}"));
             var resultWindow = new Window
             {
-                Title = "OCR Sonuçları",
-                Width = 700,
-                Height = 500,
+                Title = $"OCR Sonuçları — {words.Count} kelime",
+                Width = 760,
+                Height = 560,
                 Owner = this,
                 Content = new TextBox
                 {
-                    Text = text,
+                    Text = report,
                     IsReadOnly = true,
                     AcceptsReturn = true,
                     TextWrapping = TextWrapping.Wrap,
                     VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
                     Margin = new Thickness(10)
                 }
             };
             resultWindow.ShowDialog();
-            StatusText.Text = "OCR tamamlandı.";
+            StatusText.Text = $"OCR tamamlandı: {words.Count} kelime için çizim üzerinde konum kutuları gösteriliyor.";
         }
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "OCR hatası", MessageBoxButton.OK, MessageBoxImage.Warning);
             StatusText.Text = "OCR başarısız.";
         }
+    }
+
+    private void ClearOcr_Click(object sender, RoutedEventArgs e)
+    {
+        OcrCanvas.Children.Clear();
+        StatusText.Text = "OCR konum kutuları temizlendi.";
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
