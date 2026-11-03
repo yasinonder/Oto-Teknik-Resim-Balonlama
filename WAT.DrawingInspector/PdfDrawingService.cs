@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+
 namespace WAT.DrawingInspector;
 
 public static class PdfDrawingService
