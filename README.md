@@ -1,4 +1,4 @@
-# WAT Teknik Resim Balonlama — WPF temel sürüm 0.6.0
+# WAT Teknik Resim Balonlama — WPF temel sürüm 0.7.0
 
 C# / WPF masaüstü uygulamasıdır; Python/Tkinter değildir.
 
@@ -25,7 +25,11 @@ Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tu
 - PNG/JPG/JPEG/BMP/TIFF görsel açma
 - Görsel, PDF veya DXF üzerinde manuel balon yerleştirme
 - Tesseract Türkçe + İngilizce OCR ve kelime konum kutuları
+- Balon seçme, sürükleyerek taşıma ve seçili balonu tek tek silme
 - Balon listesini CSV dışa aktarma; PDF sayfa numarasını dosyaya yazma
+- `.watproj` SQLite projesine kaynak çizimi BLOB olarak gömme
+- PDF sayfalarına göre balonları ve sonraki balon numaralarını SQLite tablolarında kalıcı saklama
+- SQLite proje açma/kaydetme; taşınabilir tek proje dosyası
 
 ## Teknik sınırlar
 - DXF 2B geometri aşamasındadır. DIMENSION görüntüsü, ölçü varlığının BlockName ile işaret ettiği blokta mevcut geometrinin rasterleştirilmesi yoluyla gösterilir; blok bulunmuyorsa ölçü varlığı desteklenmeyen olarak sayılır. Ölçü değerinin parametrelerden yeniden hesaplanması veya doğruluk onayı henüz yapılmaz. HATCH, SPLINE, MLEADER, 3B yüzey/katı, raster referansları, özel nesneler ve diğer desteklenmeyen varlıklar henüz çizime aktarılmaz; açılışta desteklenmeyen varlık sayısı bildirilir.
@@ -39,8 +43,8 @@ Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tu
 1. DIMENSION için alternatif fallback geometrileri; HATCH/SPLINE görüntülenmesi
 2. DWG için ticari kullanım koşulları doğrulanmış dönüştürme/SDK entegrasyonu
 3. Otomatik ölçü tanıma ve otomatik balonlama
-4. Balon sürükleme, düzenleme, silme ve ölçüyle ilişkilendirme
+4. Balonlara ölçü değeri, tolerans, karakteristik adı ve kontrol sonucu alanları ekleme
 5. Excel ve PDF kontrol raporları
-6. SQLite proje ve kontrol verisi saklama
+6. SQLite proje verisini rapor/ölçüm sonuçlarıyla genişletme
 7. Tesseract dil verilerinin uygulama paketine lisans/dağıtım kontrolüyle eklenmesi
 8. Self-contained x64 yayın ve taşınabilir ZIP
