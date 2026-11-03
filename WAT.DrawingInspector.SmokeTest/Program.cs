@@ -1,4 +1,7 @@
 using System.IO;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Media;
 using ClosedXML.Excel;
 using System.Windows.Media.Imaging;
 using IxMilia.Dxf;
@@ -15,6 +18,7 @@ internal static class Program
         var projectPath = path + ".watproj";
         var excelPath = path + ".xlsx";
         var pdfReportPath = path + ".report.pdf";
+        var ocrFixturePath = path + ".ocr.png";
         try
         {
             var ocrWords = new[]
@@ -36,6 +40,50 @@ internal static class Program
 
             Console.WriteLine(
                 $"OCR dimension candidate smoke test passed: one reviewed candidate '{candidates[0].OcrText}' at %{candidates[0].Confidence:0} confidence.");
+
+            using (var visual = new DrawingVisual())
+            {
+                using (var drawing = visual.RenderOpen())
+                {
+                    drawing.DrawRectangle(Brushes.White, null, new Rect(0, 0, 1500, 600));
+                    var typeface = new Typeface(
+                        new FontFamily("Arial"),
+                        FontStyles.Normal,
+                        FontWeights.Bold,
+                        FontStretches.Normal);
+
+                    var dimensions = new[]
+                    {
+                        new FormattedText("10.5", CultureInfo.InvariantCulture,
+                            FlowDirection.LeftToRight, typeface, 110, Brushes.Black, 1.0),
+                        new FormattedText("25.0", CultureInfo.InvariantCulture,
+                            FlowDirection.LeftToRight, typeface, 110, Brushes.Black, 1.0),
+                        new FormattedText("R 5.0", CultureInfo.InvariantCulture,
+                            FlowDirection.LeftToRight, typeface, 110, Brushes.Black, 1.0)
+                    };
+
+                    drawing.DrawText(dimensions[0], new Point(100, 65));
+                    drawing.DrawText(dimensions[1], new Point(100, 235));
+                    drawing.DrawText(dimensions[2], new Point(650, 65));
+                }
+
+                var bitmap = new RenderTargetBitmap(1500, 600, 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(visual);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var output = File.Create(ocrFixturePath);
+                encoder.Save(output);
+            }
+
+            var realOcrWords = OcrService.ReadWords(ocrFixturePath);
+            var realOcrCandidates = DimensionCandidateService.FindCandidates(realOcrWords);
+            if (realOcrWords.Count == 0 || realOcrCandidates.Count == 0)
+                throw new InvalidOperationException(
+                    "Tesseract OCR integration did not read the generated technical drawing dimension fixture.");
+
+            Console.WriteLine(
+                $"Tesseract OCR integration smoke test passed: {realOcrWords.Count} words; " +
+                $"{realOcrCandidates.Count} dimension candidate(s); first '{realOcrCandidates[0].OcrText}'.");
 
             var file = new DxfFile();
             // LWPOLYLINE requires DXF R14 or newer.
@@ -219,6 +267,8 @@ internal static class Program
                 File.Delete(excelPath);
             if (File.Exists(pdfReportPath))
                 File.Delete(pdfReportPath);
+            if (File.Exists(ocrFixturePath))
+                File.Delete(ocrFixturePath);
         }
     }
 }
