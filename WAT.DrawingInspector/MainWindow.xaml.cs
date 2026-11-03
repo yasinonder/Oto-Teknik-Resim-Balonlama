@@ -853,7 +853,7 @@ public partial class MainWindow : Window
             {
                 foreach (var balloon in page.Value.OrderBy(b => b.Number))
                 {
-                    sb.Append(FormatBalloonCsvRow(page.Key + 1, balloon));
+                    sb.Append(FormatBalloonCsvRow(page.Key + 1, ToStoredBalloon(balloon)));
                 }
             }
         }
