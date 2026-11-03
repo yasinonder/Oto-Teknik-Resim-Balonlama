@@ -1,4 +1,4 @@
-# WAT Teknik Resim Balonlama — WPF temel sürüm 0.7.0
+# Teknik Resim Balonlama — WPF temel sürüm 0.7.0
 
 C# / WPF masaüstü uygulamasıdır; Python/Tkinter değildir.
 
