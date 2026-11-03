@@ -1117,7 +1117,7 @@ public partial class MainWindow : Window
             SaveCurrentPdfAnnotations();
             foreach (var page in _pdfPageBalloons.OrderBy(pair => pair.Key))
             {
-                var items = page.Key == _pdfPageIndex ? _balloons : page.Value;
+                IEnumerable<BalloonItem> items = page.Key == _pdfPageIndex ? _balloons : page.Value;
                 foreach (var item in items)
                 {
                     item.PageNumber = page.Key + 1;
