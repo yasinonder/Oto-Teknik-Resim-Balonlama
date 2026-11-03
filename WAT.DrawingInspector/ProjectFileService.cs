@@ -82,7 +82,7 @@ public static class ProjectFileService
                         PRAGMA journal_mode = DELETE;
                         PRAGMA foreign_keys = ON;
                         PRAGMA synchronous = FULL;
-                        PRAGMA user_version = 2;
+                        PRAGMA user_version = 3;
 
                         CREATE TABLE ProjectMetadata (
                             Id INTEGER NOT NULL PRIMARY KEY CHECK (Id = 1),
