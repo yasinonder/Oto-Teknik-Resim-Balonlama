@@ -51,6 +51,18 @@
        <GridViewColumn Header="Sonuç" DisplayMemberBinding="{Binding Result}" Width="80"/>
       </GridView></ListView.View>
      </ListView>
+     <TextBlock Text="OCR ÖLÇÜ ADAYLARI" FontWeight="Bold" FontSize="13"
+      Margin="0,0,0,5"/>
+     <ListView x:Name="DimensionCandidateList" Height="125" MinHeight="90"
+      SelectionMode="Single" Margin="0,0,0,6">
+      <ListView.View><GridView>
+       <GridViewColumn Header="Okunan ölçü" DisplayMemberBinding="{Binding OcrText}" Width="175"/>
+       <GridViewColumn Header="Güven" DisplayMemberBinding="{Binding ConfidenceText}" Width="55"/>
+      </GridView></ListView.View>
+     </ListView>
+     <Button Content="Seçili Ölçüye Balon Ekle" Click="AddSelectedDimensionCandidate_Click"
+      Padding="9,6" Margin="0,0,0,10"/>
+
      <ScrollViewer VerticalScrollBarVisibility="Auto">
       <StackPanel>
        <TextBlock Text="ÖLÇÜM VE TOLERANS" FontWeight="Bold" FontSize="15"
