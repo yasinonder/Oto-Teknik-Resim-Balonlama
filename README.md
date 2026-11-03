@@ -1,4 +1,4 @@
-# WAT Teknik Resim Balonlama — WPF temel sürüm 0.3.0
+# WAT Teknik Resim Balonlama — WPF temel sürüm 0.4.0
 
 C# / WPF masaüstü uygulamasıdır; Python/Tkinter değildir.
 
@@ -13,32 +13,34 @@ Visual Studio'da WAT.DrawingInspector/WAT.DrawingInspector.csproj dosyasını a�
 Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tur.traineddata ve eng.traineddata dosyalarını ekleyin.
 
 ## Bu sürümde bulunanlar
-- WPF masaüstü arayüzü
 - PDF dosyası açma ve sayfa sayısını okuma
-- PDF sayfaları arasında önceki/sonraki gezinme
-- PDF sayfasını 150 DPI PNG olarak çizim alanına aktarma
-- PDF'nin her sayfasında balonların ayrı tutulması; sayfalar arasında gezinince mevcut sayfa balonlarının korunması
-- PDF üzerindeki balonları sayfa numarasıyla CSV dışa aktarma
+- PDF sayfaları arasında gezinme; balonları geçerli uygulama oturumu içinde sayfa bazında tutma
+- PDF sayfasını 150 DPI PNG görüntüsüne dönüştürme
+- DXF dosyası okuma ve 2B geometrileri görüntüleme
+- DXF LINE, CIRCLE, ARC, LWPOLYLINE, POLYLINE ve TEXT varlıklarını WPF görüntüsüne aktarma
+- DXF çizimlerini en-boy oranını koruyarak en fazla 5000 px kenar boyutunda rasterleştirme
+- DXF'den rasterleştirilen çizime OCR ve manuel balon uygulama
 - PNG/JPG/JPEG/BMP/TIFF görsel açma
 - Görsel üzerinde tıklayarak manuel balon yerleştirme
 - Balon numarası ve piksel koordinatı listesi
 - Tesseract Türkçe + İngilizce OCR
-- OCR kelimeleri için bounding-box koordinatlarını alma
-- Algılanan kelimeleri çizim üzerinde yeşil kutularla işaretleme
-- OCR kelime, koordinat ve güven skorunu sonuç penceresinde gösterme
-- Balon listesini CSV dışa aktarma
+- OCR kelimelerini çizim üzerinde bounding-box kutularıyla işaretleme
+- OCR kelime, koordinat ve güven skorunu gösterme
+- PDF sayfası numaralı veya tek çizim için CSV balon dışa aktarma
 
-## Teknik notlar
-- PDF sayfaları PDFium üzerinden raster görüntüye dönüştürülür; bu sürüm henüz PDF içindeki vektör çizgi/ölçü nesnelerini doğrudan okumaz.
-- PDF sayfaları 150 DPI çözünürlükte, tek tek işlenir. Çok büyük paftalarda bellek ihtiyacını düşürmek için bütün PDF aynı anda görüntüye çevrilmez.
-- PDFtoImage paketi MIT lisanslıdır. Bağımlılıklarının lisans ve dağıtım bildirimleri yayımlanacak paketle birlikte ayrıca denetlenmelidir.
-- OCR metni ve güven skoru ölçüm doğruluğu veya teknik uygunluk onayı değildir. Kritik ölçüler yetkili kullanıcı tarafından çizim üzerinden doğrulanmalıdır.
+## Teknik sınırlar
+- DXF içe aktarma bu aşamada 2B LINE, CIRCLE, ARC, LWPOLYLINE, POLYLINE ve TEXT varlıklarını işler. INSERT/blok referansları, ölçülendirme varlıkları, HATCH, SPLINE, 3B ve diğer desteklenmeyen varlıklar henüz görüntüye aktarılmaz; açılış durumunda desteklenmeyen varlık sayısı bildirilir.
+- DXF çizimi bu aşamada raster görüntüye dönüştürülür. Orijinal vektör nesneleri henüz düzenlenebilir CAD modeli olarak tutulmaz ve DXF'e geri yazılmaz.
+- PDF sayfaları PDFium üzerinden raster görüntüye dönüştürülür; PDF vektör nesneleri doğrudan analiz edilmez.
+- DWG açma bu sürümde yoktur. DWG için ODA File Converter gibi harici bir DXF dönüştürme aracı veya lisanslı bir DWG SDK gerekir.
+- OCR metni ve güven skoru ölçüm doğruluğu veya teknik uygunluk onayı değildir. Kritik ölçüler kullanıcı tarafından doğrulanmalıdır.
 
 ## Henüz tamamlanmayanlar
-1. OCR kutularını düzenleme ve algılanan metni ölçü/karakter sınıflarına ayırma
-2. DXF içe aktarma; DWG için ODA File Converter tabanlı dönüştürme
-3. Teknik ölçülerin otomatik tanınması ve otomatik balonlama
-4. Balon sürükleme/düzenleme ve balon-metinsel ölçü ilişkilendirmesi
+1. DXF blok/INSERT çözümleme ve ölçülendirme varlıklarının görüntülenmesi
+2. DWG dönüştürme entegrasyonu
+3. Otomatik ölçü tanıma ve otomatik balonlama
+4. Balon sürükleme, düzenleme, silme ve ölçüyle ilişkilendirme
 5. Excel ve PDF kontrol raporları
-6. SQLite proje, çizim ve kontrol verisi saklama
-7. Self-contained x64 yayın ve taşınabilir ZIP
+6. SQLite proje ve kontrol verisi saklama
+7. Tesseract dil verilerinin uygulama paketine lisans/dağıtım kontrolüyle eklenmesi
+8. Self-contained x64 yayın ve taşınabilir ZIP
