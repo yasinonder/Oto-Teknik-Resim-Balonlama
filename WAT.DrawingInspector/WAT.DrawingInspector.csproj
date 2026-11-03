@@ -12,5 +12,6 @@
     <PackageReference Include="PDFtoImage" Version="5.4.0" />
     <PackageReference Include="IxMilia.Dxf" Version="0.8.4" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.33" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
   </ItemGroup>
 </Project>
