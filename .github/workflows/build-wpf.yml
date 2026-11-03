@@ -20,5 +20,19 @@ jobs:
         run: dotnet restore .\WAT.DrawingInspector\WAT.DrawingInspector.csproj
       - name: Build
         run: dotnet build .\WAT.DrawingInspector\WAT.DrawingInspector.csproj --configuration Release --no-restore
-      - name: DXF parser and renderer smoke test
+      - name: Download pinned OCR language models
+        shell: pwsh
+        run: |
+          $revision = "923915d4ced2a7235221788285785a29c4a42d4a"
+          $tessdata = Join-Path $env:GITHUB_WORKSPACE "WAT.DrawingInspector.SmokeTest\bin\Release\net8.0-windows\tessdata"
+          New-Item -ItemType Directory -Force -Path $tessdata | Out-Null
+          foreach ($language in @("eng", "tur")) {
+            $uri = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/$revision/$language.traineddata"
+            $destination = Join-Path $tessdata "$language.traineddata"
+            Invoke-WebRequest -Uri $uri -OutFile $destination
+            if ((Get-Item $destination).Length -lt 100000) {
+              throw "Tesseract model download is incomplete: $language"
+            }
+          }
+      - name: DXF, OCR and inspection report smoke tests
         run: dotnet run --project .\WAT.DrawingInspector.SmokeTest\WAT.DrawingInspector.SmokeTest.csproj --configuration Release
