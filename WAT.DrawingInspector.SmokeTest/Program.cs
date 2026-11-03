@@ -49,6 +49,31 @@ internal static class Program
             if (DimensionCandidateService.FindCandidates(noteWords).Count != 0)
                 throw new InvalidOperationException("OCR dimension filter must reject general note text and standards labels.");
 
+            var allLines = DimensionCandidateService.ReadTextLines(ocrWords);
+            if (!allLines.Any(line => line.OcrText.Contains("45", StringComparison.Ordinal)) ||
+                allLines.Count(line => line.IsDimensionCandidate) != 1)
+                throw new InvalidOperationException("Raw OCR lines must remain visible even when the dimension classifier rejects them.");
+
+            var adjacentDimensions = new[]
+            {
+                new OcrWord("160", 10, 350, 24, 12, 94),
+                new OcrWord("41", 180, 350, 16, 12, 93)
+            };
+            var splitDimensions = DimensionCandidateService.FindCandidates(adjacentDimensions);
+            if (splitDimensions.Count != 2 ||
+                splitDimensions[0].SuggestedValue != "160" ||
+                splitDimensions[1].SuggestedValue != "41")
+                throw new InvalidOperationException("Separate dimension values on the same drawing baseline must be split into independent candidates.");
+
+            var bilateralTolerance = DimensionCandidateService.FindCandidates(new[]
+            {
+                new OcrWord("100", 10, 390, 25, 12, 96),
+                new OcrWord("+0,5/-0,5", 40, 390, 60, 12, 95)
+            });
+            if (bilateralTolerance.Count != 1 ||
+                bilateralTolerance[0].SuggestedTolerance != "+0,5/-0,5")
+                throw new InvalidOperationException("Bilateral dimension tolerances must be preserved as OCR suggestions.");
+
             Console.WriteLine(
                 $"OCR dimension candidate smoke test passed: one reviewed candidate '{candidates[0].OcrText}' at %{candidates[0].Confidence:0}; note text filtered.");
 
