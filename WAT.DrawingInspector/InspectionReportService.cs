@@ -20,6 +20,7 @@ public static class InspectionReportService
         "Sonuç",
         "X (px)",
         "Y (px)",
+        "Çizimden Okunan Ölçü",
         "Notlar"
     };
 
@@ -88,7 +89,8 @@ public static class InspectionReportService
                     : balloon.Result;
                 sheet.Cell(row, 9).Value = balloon.X;
                 sheet.Cell(row, 10).Value = balloon.Y;
-                sheet.Cell(row, 11).Value = balloon.Notes ?? string.Empty;
+                sheet.Cell(row, 11).Value = balloon.DimensionText ?? string.Empty;
+                sheet.Cell(row, 12).Value = balloon.Notes ?? string.Empty;
 
                 var resultCell = sheet.Cell(row, 8);
                 switch (resultCell.GetString())
@@ -156,8 +158,9 @@ public static class InspectionReportService
         sheet.Column(8).Width = 17;
         sheet.Column(9).Width = 12;
         sheet.Column(10).Width = 12;
-        sheet.Column(11).Width = 42;
-        sheet.Column(11).Style.Alignment.WrapText = true;
+        sheet.Column(11).Width = 32;
+        sheet.Column(12).Width = 42;
+        sheet.Column(12).Style.Alignment.WrapText = true;
 
         workbook.Properties.Title = "WAT MOTOR A.Ş. Teknik Resim Ölçüm Raporu";
         workbook.Properties.Subject = "Balon bazlı ölçüm ve tolerans sonuçları";
