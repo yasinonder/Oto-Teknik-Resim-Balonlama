@@ -53,7 +53,8 @@ public static class ProjectFileService
             {
                 DataSource = temporaryPath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Private
+                Cache = SqliteCacheMode.Private,
+                Pooling = false
             }.ToString();
 
             using (var connection = new SqliteConnection(connectionString))
@@ -164,8 +165,15 @@ public static class ProjectFileService
         }
         catch
         {
-            if (File.Exists(temporaryPath))
-                File.Delete(temporaryPath);
+            try
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+            catch (IOException)
+            {
+                // Preserve the original failure; an antivirus/indexer may briefly hold the temp file.
+            }
             throw;
         }
     }
@@ -180,7 +188,8 @@ public static class ProjectFileService
         {
             DataSource = Path.GetFullPath(projectPath),
             Mode = SqliteOpenMode.ReadOnly,
-            Cache = SqliteCacheMode.Private
+            Cache = SqliteCacheMode.Private,
+            Pooling = false
         }.ToString();
 
         using var connection = new SqliteConnection(connectionString);
