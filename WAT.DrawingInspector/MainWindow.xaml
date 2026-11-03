@@ -84,17 +84,18 @@
        <Button Content="Seçili Balonu Sil" Click="DeleteSelectedBalloon_Click"
         HorizontalAlignment="Left" Padding="10,5" Margin="0,0,0,10"/>
 
-       <TextBlock Text="BULUNAN ÖLÇÜ ADAYLARI" FontWeight="Bold" FontSize="13" Margin="0,0,0,5"/>
+       <TextBlock Text="OCR OKUMA SONUÇLARI / ÖLÇÜ ADAYLARI" FontWeight="Bold" FontSize="13" Margin="0,0,0,5"/>
        <ListView x:Name="DimensionCandidateList" Height="145" MinHeight="90"
         SelectionMode="Single" Margin="0,0,0,6">
         <ListView.View><GridView>
-         <GridViewColumn Header="Çizimden okunan" DisplayMemberBinding="{Binding OcrText}" Width="150"/>
-         <GridViewColumn Header="Nominal" DisplayMemberBinding="{Binding SuggestedValue}" Width="65"/>
-         <GridViewColumn Header="Tol." DisplayMemberBinding="{Binding SuggestedTolerance}" Width="48"/>
-         <GridViewColumn Header="Güven" DisplayMemberBinding="{Binding ConfidenceText}" Width="48"/>
+         <GridViewColumn Header="Okunan metin" DisplayMemberBinding="{Binding OcrText}" Width="126"/>
+         <GridViewColumn Header="Nominal" DisplayMemberBinding="{Binding SuggestedValue}" Width="58"/>
+         <GridViewColumn Header="Tol." DisplayMemberBinding="{Binding SuggestedTolerance}" Width="42"/>
+         <GridViewColumn Header="Güven" DisplayMemberBinding="{Binding ConfidenceText}" Width="44"/>
+          <GridViewColumn Header="Tür" DisplayMemberBinding="{Binding TypeText}" Width="78"/>
         </GridView></ListView.View>
        </ListView>
-       <Button Content="Seçili Ölçüyü Balona Bağla / Yeni Balon" Click="AddSelectedDimensionCandidate_Click"
+       <Button Content="Seçili OCR Metnini Balona Bağla / Yeni Balon" Click="AddSelectedDimensionCandidate_Click"
         Padding="8,7" Margin="0,0,0,12" Background="#173746" Foreground="White"/>
 
        <TextBlock Text="SEÇİLİ BALONUN ÖLÇÜ BİLGİSİ" FontWeight="Bold" FontSize="14" Margin="0,0,0,7"/>
