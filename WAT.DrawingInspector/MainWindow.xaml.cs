@@ -20,6 +20,12 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, List<BalloonItem>> _pdfPageBalloons = new();
     private readonly Dictionary<int, int> _pdfPageNextNumbers = new();
     private readonly Dictionary<BalloonItem, Border> _balloonVisuals = new();
+    private readonly ScaleTransform _zoomTransform = new(1, 1);
+    private readonly Dictionary<BalloonItem, System.Windows.Shapes.Rectangle> _dimensionLinkVisuals = new();
+    private bool _dimensionSelectionMode;
+    private bool _isSelectingDimensionArea;
+    private Point _dimensionSelectionStart;
+    private System.Windows.Shapes.Rectangle? _dimensionSelectionVisual;
 
     private BalloonItem? _draggedBalloon;
     private Border? _draggedVisual;
@@ -40,6 +46,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         BalloonList.ItemsSource = _balloons;
         DimensionCandidateList.ItemsSource = _dimensionCandidates;
+        DrawingSurface.LayoutTransform = _zoomTransform;
         LoadMeasurementEditor(null);
         UpdatePdfControls();
     }
@@ -316,12 +323,18 @@ public partial class MainWindow : Window
         DrawingSurface.Height = bitmap.PixelHeight;
         OcrCanvas.Width = bitmap.PixelWidth;
         OcrCanvas.Height = bitmap.PixelHeight;
+        DimensionLinkCanvas.Width = bitmap.PixelWidth;
+        DimensionLinkCanvas.Height = bitmap.PixelHeight;
         BalloonCanvas.Width = bitmap.PixelWidth;
         BalloonCanvas.Height = bitmap.PixelHeight;
         OcrCanvas.Children.Clear();
+        DimensionLinkCanvas.Children.Clear();
+        _dimensionLinkVisuals.Clear();
         _dimensionCandidates.Clear();
         BalloonCanvas.Children.Clear();
         _balloonVisuals.Clear();
+        SetZoom(1.0);
+        Dispatcher.BeginInvoke(new Action(FitDrawingToViewport), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private static BitmapImage LoadBitmap(byte[] bytes)
@@ -396,12 +409,186 @@ public partial class MainWindow : Window
     private void Surface_Click(object sender, MouseButtonEventArgs e)
     {
         if (DrawingImage.Source is not BitmapSource bitmap) return;
-
-        var p = e.GetPosition(DrawingSurface);
-        if (p.X < 0 || p.Y < 0 || p.X >= bitmap.PixelWidth || p.Y >= bitmap.PixelHeight)
+        var point = e.GetPosition(DrawingSurface);
+        if (point.X < 0 || point.Y < 0 || point.X >= bitmap.PixelWidth || point.Y >= bitmap.PixelHeight)
             return;
 
-        AddBalloon(p.X, p.Y);
+        if (_dimensionSelectionMode)
+        {
+            _dimensionSelectionMode = false;
+            _isSelectingDimensionArea = true;
+            _dimensionSelectionStart = point;
+            _dimensionSelectionVisual = new System.Windows.Shapes.Rectangle
+            {
+                Stroke = Brushes.DodgerBlue,
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection { 4, 2 },
+                Fill = new SolidColorBrush(Color.FromArgb(35, 30, 144, 255))
+            };
+            Canvas.SetLeft(_dimensionSelectionVisual, point.X);
+            Canvas.SetTop(_dimensionSelectionVisual, point.Y);
+            OcrCanvas.Children.Add(_dimensionSelectionVisual);
+            DrawingSurface.CaptureMouse();
+            StatusText.Text = "Ölçü alanını sol tuşla sürükleyerek çerçeveleyin.";
+            e.Handled = true;
+            return;
+        }
+
+        AddBalloon(point.X, point.Y);
+    }
+
+    private void Surface_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_isSelectingDimensionArea || _dimensionSelectionVisual is null) return;
+        var point = e.GetPosition(DrawingSurface);
+        Canvas.SetLeft(_dimensionSelectionVisual, Math.Min(point.X, _dimensionSelectionStart.X));
+        Canvas.SetTop(_dimensionSelectionVisual, Math.Min(point.Y, _dimensionSelectionStart.Y));
+        _dimensionSelectionVisual.Width = Math.Abs(point.X - _dimensionSelectionStart.X);
+        _dimensionSelectionVisual.Height = Math.Abs(point.Y - _dimensionSelectionStart.Y);
+        e.Handled = true;
+    }
+
+    private async void Surface_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isSelectingDimensionArea || _dimensionSelectionVisual is null) return;
+        var point = e.GetPosition(DrawingSurface);
+        var x = Math.Min(point.X, _dimensionSelectionStart.X);
+        var y = Math.Min(point.Y, _dimensionSelectionStart.Y);
+        var width = Math.Abs(point.X - _dimensionSelectionStart.X);
+        var height = Math.Abs(point.Y - _dimensionSelectionStart.Y);
+
+        _isSelectingDimensionArea = false;
+        DrawingSurface.ReleaseMouseCapture();
+        OcrCanvas.Children.Remove(_dimensionSelectionVisual);
+        _dimensionSelectionVisual = null;
+
+        if (width < 5 || height < 5)
+        {
+            StatusText.Text = "Seçim alanı çok küçük. Ölçüyü çevreleyecek şekilde tekrar deneyin.";
+            return;
+        }
+
+        await ReadDimensionAreaAsync(x, y, width, height);
+        e.Handled = true;
+    }
+
+    private void BeginDimensionAreaSelection_Click(object sender, RoutedEventArgs e)
+    {
+        if (DrawingImage.Source is not BitmapSource)
+        {
+            StatusText.Text = "Önce bir PDF, DXF veya görsel açın.";
+            return;
+        }
+
+        _dimensionSelectionMode = true;
+        DrawingSurface.Cursor = Cursors.Cross;
+        StatusText.Text = "Çizimde okunmasını istediğiniz ölçüyü fareyle çerçeveleyin. Balon seçiliyse ölçü ona bağlanır.";
+    }
+
+    private async Task ReadDimensionAreaAsync(double x, double y, double width, double height)
+    {
+        if (DrawingImage.Source is not BitmapSource bitmap) return;
+        SetBusy(true, "Seçilen ölçü alanı OCR ile okunuyor...");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"wat-dimension-{Guid.NewGuid():N}.png");
+        try
+        {
+            var left = Math.Clamp((int)Math.Floor(x), 0, bitmap.PixelWidth - 1);
+            var top = Math.Clamp((int)Math.Floor(y), 0, bitmap.PixelHeight - 1);
+            var right = Math.Clamp((int)Math.Ceiling(x + width), left + 1, bitmap.PixelWidth);
+            var bottom = Math.Clamp((int)Math.Ceiling(y + height), top + 1, bitmap.PixelHeight);
+            var crop = new CroppedBitmap(bitmap, new Int32Rect(left, top, right - left, bottom - top));
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(crop));
+            using (var output = File.Create(tempPath)) encoder.Save(output);
+
+            var words = await Task.Run(() => OcrService.ReadWords(tempPath));
+            var candidates = DimensionCandidateService.FindCandidates(words);
+            OcrCanvas.Children.Clear();
+            _dimensionCandidates.Clear();
+            foreach (var candidate in candidates)
+            {
+                var absolute = candidate with { Left = candidate.Left + left, Top = candidate.Top + top };
+                _dimensionCandidates.Add(absolute);
+                DrawCandidateOverlay(absolute);
+            }
+
+            StatusText.Text = candidates.Count == 0
+                ? "Seçilen alanda güvenilir ölçü bulunamadı. Daha dar, yalnızca ölçüyü içeren alan seçin."
+                : $"{candidates.Count} ölçü adayı bulundu. Listeden seçip mevcut balona bağlayın veya yeni balon oluşturun.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Ölçü alanı okunamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+            StatusText.Text = "Seçilen ölçü okunamadı.";
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch (IOException) { }
+            DrawingSurface.Cursor = Cursors.Arrow;
+            SetBusy(false);
+        }
+    }
+
+    private void DrawCandidateOverlay(OcrDimensionCandidate candidate)
+    {
+        var rect = new System.Windows.Shapes.Rectangle
+        {
+            Width = Math.Max(1, candidate.Width),
+            Height = Math.Max(1, candidate.Height),
+            Stroke = Brushes.OrangeRed,
+            StrokeThickness = 2,
+            StrokeDashArray = new DoubleCollection { 3, 2 },
+            Fill = new SolidColorBrush(Color.FromArgb(28, 255, 140, 0))
+        };
+        Canvas.SetLeft(rect, candidate.Left);
+        Canvas.SetTop(rect, candidate.Top);
+        OcrCanvas.Children.Add(rect);
+        var label = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(225, 150, 65, 0)),
+            Padding = new Thickness(3, 1, 3, 1),
+            Child = new TextBlock
+            {
+                Text = $"{candidate.OcrText} • %{candidate.Confidence:0}",
+                Foreground = Brushes.White,
+                FontSize = 10,
+                FontWeight = FontWeights.Bold
+            }
+        };
+        Canvas.SetLeft(label, candidate.Left);
+        Canvas.SetTop(label, Math.Max(0, candidate.Top - 20));
+        OcrCanvas.Children.Add(label);
+    }
+
+    private void ZoomIn_Click(object sender, RoutedEventArgs e) => SetZoom(_zoomTransform.ScaleX * 1.2);
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) => SetZoom(_zoomTransform.ScaleX / 1.2);
+    private void ActualSize_Click(object sender, RoutedEventArgs e) => SetZoom(1.0);
+    private void FitDrawing_Click(object sender, RoutedEventArgs e) => FitDrawingToViewport();
+
+    private void FitDrawingToViewport()
+    {
+        if (DrawingImage.Source is not BitmapSource bitmap ||
+            ZoomScrollViewer.ViewportWidth <= 0 || ZoomScrollViewer.ViewportHeight <= 0) return;
+        var fit = Math.Min(
+            (ZoomScrollViewer.ViewportWidth - 24) / bitmap.PixelWidth,
+            (ZoomScrollViewer.ViewportHeight - 24) / bitmap.PixelHeight);
+        SetZoom(Math.Clamp(fit, 0.08, 1.0));
+        ZoomScrollViewer.ScrollToHome();
+    }
+
+    private void SetZoom(double value)
+    {
+        var zoom = Math.Clamp(value, 0.08, 4.0);
+        _zoomTransform.ScaleX = zoom;
+        _zoomTransform.ScaleY = zoom;
+        ZoomLevelText.Text = $"%{zoom * 100:0}";
+    }
+
+    private void ZoomScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (!Keyboard.IsKeyDown(Key.LeftCtrl) && !Keyboard.IsKeyDown(Key.RightCtrl)) return;
+        SetZoom(_zoomTransform.ScaleX * (e.Delta > 0 ? 1.12 : 1 / 1.12));
+        e.Handled = true;
     }
 
     private void AddBalloon(double x, double y)
@@ -449,6 +636,7 @@ public partial class MainWindow : Window
         Canvas.SetTop(bubble, item.Y - 15);
         BalloonCanvas.Children.Add(bubble);
         _balloonVisuals[item] = bubble;
+        DrawLinkedDimension(item);
         UpdateBalloonSelectionVisuals();
     }
 
@@ -509,6 +697,7 @@ public partial class MainWindow : Window
     private void LoadMeasurementEditor(BalloonItem? item)
     {
         var enabled = item is not null;
+        DimensionTextBox.Text = item?.DimensionText ?? string.Empty;
         CharacteristicTextBox.IsEnabled = enabled;
         NominalValueTextBox.IsEnabled = enabled;
         LowerToleranceTextBox.IsEnabled = enabled;
@@ -689,6 +878,8 @@ public partial class MainWindow : Window
 
         if (_balloonVisuals.Remove(selected, out var visual))
             BalloonCanvas.Children.Remove(visual);
+        if (_dimensionLinkVisuals.Remove(selected, out var dimensionVisual))
+            DimensionLinkCanvas.Children.Remove(dimensionVisual);
 
         _balloons.Remove(selected);
         BalloonList.SelectedItem = null;
@@ -708,110 +899,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        SetBusy(true, "OCR metinleri ve konum kutuları algılanıyor...");
+        SetBusy(true, "Çizimdeki ölçü adayları aranıyor...");
         try
         {
-            var imagePath = _imagePath;
-            var words = await Task.Run(() => OcrService.ReadWords(imagePath));
+            var words = await Task.Run(() => OcrService.ReadWords(_imagePath));
             var candidates = DimensionCandidateService.FindCandidates(words);
             OcrCanvas.Children.Clear();
             _dimensionCandidates.Clear();
             foreach (var candidate in candidates)
+            {
                 _dimensionCandidates.Add(candidate);
-
-            foreach (var word in words)
-            {
-                var rect = new System.Windows.Shapes.Rectangle
-                {
-                    Width = Math.Max(1, word.Width),
-                    Height = Math.Max(1, word.Height),
-                    Stroke = Brushes.LimeGreen,
-                    StrokeThickness = 1.5,
-                    Fill = new SolidColorBrush(Color.FromArgb(24, 50, 205, 50))
-                };
-                Canvas.SetLeft(rect, word.Left);
-                Canvas.SetTop(rect, word.Top);
-                OcrCanvas.Children.Add(rect);
-
-                var label = new Border
-                {
-                    Background = new SolidColorBrush(Color.FromArgb(220, 20, 80, 50)),
-                    Padding = new Thickness(2, 0, 2, 0),
-                    Child = new TextBlock
-                    {
-                        Text = word.Text,
-                        Foreground = Brushes.White,
-                        FontSize = 10,
-                        MaxWidth = 220,
-                        TextTrimming = TextTrimming.CharacterEllipsis
-                    }
-                };
-                Canvas.SetLeft(label, word.Left);
-                Canvas.SetTop(label, Math.Max(0, word.Top - 16));
-                OcrCanvas.Children.Add(label);
+                DrawCandidateOverlay(candidate);
             }
 
-            foreach (var candidate in candidates)
-            {
-                var candidateRect = new System.Windows.Shapes.Rectangle
-                {
-                    Width = Math.Max(1, candidate.Width),
-                    Height = Math.Max(1, candidate.Height),
-                    Stroke = Brushes.OrangeRed,
-                    StrokeThickness = 2,
-                    StrokeDashArray = new DoubleCollection { 3, 2 },
-                    Fill = new SolidColorBrush(Color.FromArgb(28, 255, 140, 0))
-                };
-                Canvas.SetLeft(candidateRect, candidate.Left);
-                Canvas.SetTop(candidateRect, candidate.Top);
-                OcrCanvas.Children.Add(candidateRect);
-
-                var candidateLabel = new Border
-                {
-                    Background = new SolidColorBrush(Color.FromArgb(225, 150, 65, 0)),
-                    Padding = new Thickness(3, 1, 3, 1),
-                    Child = new TextBlock
-                    {
-                        Text = $"ADAY: {candidate.SuggestedValue} • %{candidate.Confidence:0}",
-                        Foreground = Brushes.White,
-                        FontSize = 10,
-                        FontWeight = FontWeights.Bold
-                    }
-                };
-                Canvas.SetLeft(candidateLabel, candidate.Left);
-                Canvas.SetTop(candidateLabel, Math.Max(0, candidate.Top - 19));
-                OcrCanvas.Children.Add(candidateLabel);
-            }
-
-            var candidateReport = candidates.Count == 0
-                ? "Ölçü formatına benzeyen, tek değer içeren güvenilir OCR satırı bulunamadı."
-                : string.Join(Environment.NewLine, candidates.Select(candidate =>
-                    $"{candidate.OcrText} | Öneri: {candidate.SuggestedValue} | Güven:%{candidate.Confidence:0}"));
-
-            var report = string.Join(Environment.NewLine,
-                words.Select(w => $"{w.Text} | X:{w.Left} Y:{w.Top} W:{w.Width} H:{w.Height} | Güven:%{w.Confidence:F0}"));
-
-            report += Environment.NewLine + Environment.NewLine +
-                $"ÖLÇÜ ADAYLARI ({candidates.Count})" + Environment.NewLine + candidateReport;
-            var resultWindow = new Window
-            {
-                Title = $"OCR Sonuçları — {words.Count} kelime",
-                Width = 760,
-                Height = 560,
-                Owner = this,
-                Content = new TextBox
-                {
-                    Text = report,
-                    IsReadOnly = true,
-                    AcceptsReturn = true,
-                    TextWrapping = TextWrapping.Wrap,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                    Margin = new Thickness(10)
-                }
-            };
-            resultWindow.ShowDialog();
-            StatusText.Text = $"OCR tamamlandı: {words.Count} kelime, {candidates.Count} ölçü adayı. Adayları kontrol edip balon ekleyin.";
+            StatusText.Text = candidates.Count == 0
+                ? $"OCR {words.Count} kelime okudu ancak güvenilir ölçü adayı bulamadı. Genel notlar balonlanmadı; Ölçü Alanı Seç'i kullanın."
+                : $"OCR {words.Count} kelime taradı; yalnızca {candidates.Count} olası ölçü listelendi. Her adayı çizimde doğrulayın.";
         }
         catch (Exception ex)
         {
@@ -854,54 +957,91 @@ public partial class MainWindow : Window
     {
         if (DimensionCandidateList.SelectedItem is not OcrDimensionCandidate candidate)
         {
-            StatusText.Text = "Balon eklemek için önce OCR ölçü adaylarından birini seçin.";
+            StatusText.Text = "Önce ölçü adaylarından birini seçin veya çizimde Ölçü Alanı Seç işlemini yapın.";
             return;
         }
 
-        if (BalloonCanvas.Width <= 30 || BalloonCanvas.Height <= 30)
+        var item = BalloonList.SelectedItem as BalloonItem;
+        if (item is null)
         {
-            StatusText.Text = "Önce geçerli bir çizim açın.";
-            return;
+            var centerY = candidate.Top + candidate.Height / 2.0;
+            var rightPosition = candidate.Left + candidate.Width + 34.0;
+            var x = rightPosition <= BalloonCanvas.Width - 16
+                ? rightPosition : Math.Max(16.0, candidate.Left - 34.0);
+            var y = Math.Clamp(centerY, 16.0, BalloonCanvas.Height - 16.0);
+            item = new BalloonItem
+            {
+                Number = _nextNumber++,
+                X = Math.Round(x, 1),
+                Y = Math.Round(y, 1),
+                Characteristic = "Ölçü"
+            };
+            _balloons.Add(item);
+            DrawBalloon(item);
         }
 
-        var centerY = candidate.Top + candidate.Height / 2.0;
-        var rightPosition = candidate.Left + candidate.Width + 34.0;
-        var x = rightPosition <= BalloonCanvas.Width - 16
-            ? rightPosition
-            : Math.Max(16.0, candidate.Left - 34.0);
-        var y = Math.Clamp(centerY, 16.0, BalloonCanvas.Height - 16.0);
+        item.DimensionText = candidate.OcrText;
+        item.DimensionLeft = candidate.Left;
+        item.DimensionTop = candidate.Top;
+        item.DimensionWidth = candidate.Width;
+        item.DimensionHeight = candidate.Height;
+        if (string.IsNullOrWhiteSpace(item.NominalValue))
+            item.NominalValue = candidate.SuggestedValue;
 
-        var item = new BalloonItem
+        if (!string.IsNullOrWhiteSpace(candidate.SuggestedTolerance))
         {
-            Number = _nextNumber++,
-            X = Math.Round(x, 1),
-            Y = Math.Round(y, 1),
-            Characteristic = "OCR ölçü adayı - doğrula",
-            Notes = $"OCR metni: {candidate.OcrText}; güven: %{candidate.Confidence:0}. " +
-                "Nominal değer ve tolerans kullanıcı tarafından doğrulanmalıdır."
-        };
+            var tolerance = candidate.SuggestedTolerance.TrimStart('+', '-');
+            if (string.IsNullOrWhiteSpace(item.LowerTolerance)) item.LowerTolerance = "-" + tolerance;
+            if (string.IsNullOrWhiteSpace(item.UpperTolerance)) item.UpperTolerance = "+" + tolerance;
+        }
 
-        _balloons.Add(item);
-        DrawBalloon(item);
+        var confidenceNote = $"OCR güveni: %{candidate.Confidence:0}. Ölçü/tolerans çizimden doğrulanmalıdır.";
+        if (!item.Notes.Contains(confidenceNote, StringComparison.Ordinal))
+            item.Notes = string.IsNullOrWhiteSpace(item.Notes) ? confidenceNote :
+                item.Notes + Environment.NewLine + confidenceNote;
+
+        DrawLinkedDimension(item);
         BalloonList.SelectedItem = item;
+        BalloonList.Items.Refresh();
         _dimensionCandidates.Remove(candidate);
-        if (_pdfPath is not null)
-            SaveCurrentPdfAnnotations();
+        if (_pdfPath is not null) SaveCurrentPdfAnnotations();
+        StatusText.Text = $"'{candidate.OcrText}' ölçüsü Balon {item.Number} ile ilişkilendirildi. Nominal ve toleransları kontrol edin.";
+    }
 
-        StatusText.Text = $"OCR adayı balon {item.Number} olarak eklendi. OCR metni nominal değer olarak kabul edilmedi; lütfen doğrulayın.";
+    private void DrawLinkedDimension(BalloonItem item)
+    {
+        if (item.DimensionWidth <= 0 || item.DimensionHeight <= 0 ||
+            item.DimensionLeft < 0 || item.DimensionTop < 0) return;
+        if (_dimensionLinkVisuals.Remove(item, out var previous))
+            DimensionLinkCanvas.Children.Remove(previous);
+
+        var rect = new System.Windows.Shapes.Rectangle
+        {
+            Width = item.DimensionWidth,
+            Height = item.DimensionHeight,
+            Stroke = Brushes.DodgerBlue,
+            StrokeThickness = 1.6,
+            Fill = new SolidColorBrush(Color.FromArgb(22, 30, 144, 255))
+        };
+        Canvas.SetLeft(rect, item.DimensionLeft);
+        Canvas.SetTop(rect, item.DimensionTop);
+        DimensionLinkCanvas.Children.Add(rect);
+        _dimensionLinkVisuals[item] = rect;
     }
 
     private void ClearOcr_Click(object sender, RoutedEventArgs e)
     {
         OcrCanvas.Children.Clear();
         _dimensionCandidates.Clear();
-        StatusText.Text = "OCR konum kutuları ve ölçü adayları temizlendi.";
+        StatusText.Text = "Geçici OCR aday kutuları temizlendi. Balonlara bağlı ölçü alanları korundu.";
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
         _balloons.Clear();
         BalloonCanvas.Children.Clear();
+        DimensionLinkCanvas.Children.Clear();
+        _dimensionLinkVisuals.Clear();
         _balloonVisuals.Clear();
         BalloonList.SelectedItem = null;
         LoadMeasurementEditor(null);
