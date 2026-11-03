@@ -1,4 +1,4 @@
-name: WPF Build
+name: WPF Build and DXF Smoke Test
 
 on:
   push:
@@ -20,3 +20,5 @@ jobs:
         run: dotnet restore .\WAT.DrawingInspector\WAT.DrawingInspector.csproj
       - name: Build
         run: dotnet build .\WAT.DrawingInspector\WAT.DrawingInspector.csproj --configuration Release --no-restore
+      - name: DXF parser and renderer smoke test
+        run: dotnet run --project .\WAT.DrawingInspector.SmokeTest\WAT.DrawingInspector.SmokeTest.csproj --configuration Release
