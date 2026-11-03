@@ -1,32 +1,36 @@
-# WAT Teknik Resim Balonlama — WPF temel sürüm 0.1.0
+# WAT Teknik Resim Balonlama — WPF temel sürüm 0.2.0
 
-Bu depo C# / WPF masaüstü uygulaması içindir; Python/Tkinter değildir.
+C# / WPF masaüstü uygulamasıdır; Python/Tkinter değildir.
 
 ## Geliştirme ortamı
 - Visual Studio 2022
 - .NET 8 SDK
 - Windows 10/11 x64
 
-Visual Studio'da `WAT.DrawingInspector/WAT.DrawingInspector.csproj` dosyasını açın. NuGet paketlerinin geri yüklenmesine izin verin.
+Visual Studio'da `WAT.DrawingInspector/WAT.DrawingInspector.csproj` dosyasını açın ve NuGet paketlerini geri yükleyin.
 
 ## OCR dil verileri
-Uygulama klasöründe `tessdata` dizini oluşturup Tesseract'ın `tur.traineddata` ve `eng.traineddata` dosyalarını ekleyin.
+Uygulama çalıştırma klasöründe `tessdata` dizini oluşturup Tesseract'ın `tur.traineddata` ve `eng.traineddata` dosyalarını ekleyin.
 
-## Bu temelde bulunanlar
+## Bu sürümde bulunanlar
 - WPF masaüstü arayüzü
 - PNG/JPG/JPEG/BMP/TIFF görsel açma
 - Görsel üzerinde tıklayarak manuel balon yerleştirme
 - Balon numarası ve piksel koordinatı listesi
-- Tesseract ile Türkçe + İngilizce OCR altyapısı
+- Tesseract Türkçe + İngilizce OCR
+- OCR kelimeleri için Tesseract bounding-box koordinatlarının alınması
+- Algılanan kelimelerin çizim üzerinde yeşil kutularla işaretlenmesi
+- OCR kelime, koordinat ve güven skorunun sonuç penceresinde gösterilmesi
 - Balon listesini CSV dışa aktarma
 
-## Geliştirme sırası / henüz tamamlanmayanlar
-1. OCR kelime/karakter koordinat kutularını çizim koordinatlarına bağlama
+## Henüz tamamlanmayanlar
+1. OCR kutularını düzenleme ve algılanan metni ölçü/karakter sınıflarına ayırma
 2. PDF sayfa görüntüleme ve OCR
 3. DXF içe aktarma; DWG için ODA File Converter tabanlı dönüştürme
-4. Ölçü tespiti ve otomatik balonlama, balon sürükleme/düzenleme
-5. Excel ve PDF kontrol raporları
-6. SQLite proje, çizim ve kontrol verisi saklama
-7. Self-contained x64 yayın ve taşınabilir ZIP
+4. Teknik ölçülerin otomatik tanınması ve otomatik balonlama
+5. Balon sürükleme/düzenleme ve balon-metinsel ölçü ilişkilendirmesi
+6. Excel ve PDF kontrol raporları
+7. SQLite proje, çizim ve kontrol verisi saklama
+8. Self-contained x64 yayın ve taşınabilir ZIP
 
-OCR çıktısı tek başına ölçüm doğruluğu veya teknik uygunluk onayı değildir. Kritik ölçüler teknik resim üzerinden yetkili kullanıcı tarafından doğrulanmalıdır.
+OCR metni ve güven skoru, ölçüm doğruluğu veya teknik uygunluk onayı değildir. Kritik ölçüler yetkili kullanıcı tarafından çizim üzerinden doğrulanmalıdır.
