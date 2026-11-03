@@ -145,7 +145,6 @@ public static class InspectionReportService
         reportRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         reportRange.SetAutoFilter();
         sheet.SheetView.FreezeRows(headerRow);
-        sheet.SheetView.ShowGridLines = false;
 
         sheet.Column(1).Width = 9;
         sheet.Column(2).Width = 11;
