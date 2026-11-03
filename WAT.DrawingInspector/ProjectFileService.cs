@@ -6,7 +6,17 @@ using Microsoft.Data.Sqlite;
 
 namespace WAT.DrawingInspector;
 
-public sealed record StoredBalloon(int Number, double X, double Y);
+public sealed record StoredBalloon(
+    int Number,
+    double X,
+    double Y,
+    string Characteristic = "",
+    string NominalValue = "",
+    string UpperTolerance = "",
+    string LowerTolerance = "",
+    string MeasuredValue = "",
+    string Result = "Beklemede",
+    string Notes = "");
 
 public sealed record InspectionProjectData(
     string SourceFileName,
@@ -18,7 +28,7 @@ public sealed record InspectionProjectData(
 
 public static class ProjectFileService
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
     private const long MaximumEmbeddedDrawingBytes = 1024L * 1024L * 1024L;
 
     public static void Save(
@@ -67,7 +77,7 @@ public static class ProjectFileService
                         PRAGMA journal_mode = DELETE;
                         PRAGMA foreign_keys = ON;
                         PRAGMA synchronous = FULL;
-                        PRAGMA user_version = 1;
+                        PRAGMA user_version = 2;
 
                         CREATE TABLE ProjectMetadata (
                             Id INTEGER NOT NULL PRIMARY KEY CHECK (Id = 1),
@@ -84,6 +94,13 @@ public static class ProjectFileService
                             Number INTEGER NOT NULL,
                             X REAL NOT NULL,
                             Y REAL NOT NULL,
+                            Characteristic TEXT NOT NULL DEFAULT '',
+                            NominalValue TEXT NOT NULL DEFAULT '',
+                            UpperTolerance TEXT NOT NULL DEFAULT '',
+                            LowerTolerance TEXT NOT NULL DEFAULT '',
+                            MeasuredValue TEXT NOT NULL DEFAULT '',
+                            Result TEXT NOT NULL DEFAULT 'Beklemede',
+                            Notes TEXT NOT NULL DEFAULT '',
                             PRIMARY KEY (PageIndex, Number)
                         );
 
@@ -119,13 +136,24 @@ public static class ProjectFileService
                 {
                     command.Transaction = transaction;
                     command.CommandText = """
-                        INSERT INTO BalloonAnnotations (PageIndex, Number, X, Y)
-                        VALUES ($page, $number, $x, $y);
+                        INSERT INTO BalloonAnnotations
+                            (PageIndex, Number, X, Y, Characteristic, NominalValue,
+                             UpperTolerance, LowerTolerance, MeasuredValue, Result, Notes)
+                        VALUES
+                            ($page, $number, $x, $y, $characteristic, $nominal,
+                             $upper, $lower, $measured, $result, $notes);
                         """;
                     var pageParameter = command.Parameters.Add("$page", SqliteType.Integer);
                     var numberParameter = command.Parameters.Add("$number", SqliteType.Integer);
                     var xParameter = command.Parameters.Add("$x", SqliteType.Real);
                     var yParameter = command.Parameters.Add("$y", SqliteType.Real);
+                    var characteristicParameter = command.Parameters.Add("$characteristic", SqliteType.Text);
+                    var nominalParameter = command.Parameters.Add("$nominal", SqliteType.Text);
+                    var upperParameter = command.Parameters.Add("$upper", SqliteType.Text);
+                    var lowerParameter = command.Parameters.Add("$lower", SqliteType.Text);
+                    var measuredParameter = command.Parameters.Add("$measured", SqliteType.Text);
+                    var resultParameter = command.Parameters.Add("$result", SqliteType.Text);
+                    var notesParameter = command.Parameters.Add("$notes", SqliteType.Text);
 
                     foreach (var page in balloonsByPage.OrderBy(item => item.Key))
                     {
@@ -135,6 +163,13 @@ public static class ProjectFileService
                             numberParameter.Value = balloon.Number;
                             xParameter.Value = balloon.X;
                             yParameter.Value = balloon.Y;
+                            characteristicParameter.Value = balloon.Characteristic ?? string.Empty;
+                            nominalParameter.Value = balloon.NominalValue ?? string.Empty;
+                            upperParameter.Value = balloon.UpperTolerance ?? string.Empty;
+                            lowerParameter.Value = balloon.LowerTolerance ?? string.Empty;
+                            measuredParameter.Value = balloon.MeasuredValue ?? string.Empty;
+                            resultParameter.Value = string.IsNullOrWhiteSpace(balloon.Result) ? "Beklemede" : balloon.Result;
+                            notesParameter.Value = balloon.Notes ?? string.Empty;
                             command.ExecuteNonQuery();
                         }
                     }
@@ -227,17 +262,24 @@ public static class ProjectFileService
             currentPageIndex = Math.Max(0, reader.GetInt32(4));
         }
 
-        if (schemaVersion != CurrentSchemaVersion)
+        if (schemaVersion < 1 || schemaVersion > CurrentSchemaVersion)
             throw new InvalidDataException($"Desteklenmeyen proje şema sürümü: {schemaVersion}.");
 
         var balloonsByPage = new Dictionary<int, List<StoredBalloon>>();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = """
-                SELECT PageIndex, Number, X, Y
-                FROM BalloonAnnotations
-                ORDER BY PageIndex, Number;
-                """;
+            command.CommandText = schemaVersion >= 2
+                ? """
+                    SELECT PageIndex, Number, X, Y, Characteristic, NominalValue,
+                           UpperTolerance, LowerTolerance, MeasuredValue, Result, Notes
+                    FROM BalloonAnnotations
+                    ORDER BY PageIndex, Number;
+                  """
+                : """
+                    SELECT PageIndex, Number, X, Y
+                    FROM BalloonAnnotations
+                    ORDER BY PageIndex, Number;
+                  """;
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -248,10 +290,22 @@ public static class ProjectFileService
                     balloonsByPage.Add(page, list);
                 }
 
-                list.Add(new StoredBalloon(
-                    reader.GetInt32(1),
-                    reader.GetDouble(2),
-                    reader.GetDouble(3)));
+                list.Add(schemaVersion >= 2
+                    ? new StoredBalloon(
+                        reader.GetInt32(1),
+                        reader.GetDouble(2),
+                        reader.GetDouble(3),
+                        reader.GetString(4),
+                        reader.GetString(5),
+                        reader.GetString(6),
+                        reader.GetString(7),
+                        reader.GetString(8),
+                        reader.GetString(9),
+                        reader.GetString(10))
+                    : new StoredBalloon(
+                        reader.GetInt32(1),
+                        reader.GetDouble(2),
+                        reader.GetDouble(3)));
             }
         }
 
