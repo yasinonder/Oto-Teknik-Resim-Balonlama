@@ -89,17 +89,20 @@ internal static class Program
 
                     var dimensions = new[]
                     {
-                        new FormattedText("10.5", CultureInfo.InvariantCulture,
-                            FlowDirection.LeftToRight, typeface, 110, Brushes.Black, 1.0),
+                        new FormattedText("Ø 10,5 ±0,1", CultureInfo.InvariantCulture,
+                            FlowDirection.LeftToRight, typeface, 28, Brushes.Black, 1.0),
                         new FormattedText("25.0", CultureInfo.InvariantCulture,
-                            FlowDirection.LeftToRight, typeface, 110, Brushes.Black, 1.0),
+                            FlowDirection.LeftToRight, typeface, 28, Brushes.Black, 1.0),
                         new FormattedText("R 5.0", CultureInfo.InvariantCulture,
-                            FlowDirection.LeftToRight, typeface, 110, Brushes.Black, 1.0)
+                            FlowDirection.LeftToRight, typeface, 28, Brushes.Black, 1.0)
                     };
 
+                    // Keep the font at realistic drawing annotation scale rather than a poster-sized OCR fixture.
                     drawing.DrawText(dimensions[0], new Point(100, 65));
                     drawing.DrawText(dimensions[1], new Point(100, 235));
                     drawing.DrawText(dimensions[2], new Point(650, 65));
+                    drawing.DrawLine(new Pen(Brushes.Black, 1), new Point(90, 105), new Point(310, 105));
+                    drawing.DrawLine(new Pen(Brushes.Black, 1), new Point(90, 220), new Point(190, 220));
             }
 
             var bitmap = new RenderTargetBitmap(1500, 600, 96, 96, PixelFormats.Pbgra32);
