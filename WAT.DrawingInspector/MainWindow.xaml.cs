@@ -502,20 +502,22 @@ public partial class MainWindow : Window
             encoder.Frames.Add(BitmapFrame.Create(crop));
             using (var output = File.Create(tempPath)) encoder.Save(output);
 
-            var words = await Task.Run(() => OcrService.ReadWords(tempPath));
-            var candidates = DimensionCandidateService.FindCandidates(words);
+            var words = await Task.Run(() => OcrService.ReadWords(tempPath, selectedArea: true));
+            var readings = DimensionCandidateService.ReadTextLines(words, minimumConfidence: 10f);
             OcrCanvas.Children.Clear();
             _dimensionCandidates.Clear();
-            foreach (var candidate in candidates)
+            foreach (var reading in readings)
             {
-                var absolute = candidate with { Left = candidate.Left + left, Top = candidate.Top + top };
+                var absolute = reading with { Left = reading.Left + left, Top = reading.Top + top };
                 _dimensionCandidates.Add(absolute);
-                DrawCandidateOverlay(absolute);
+                if (absolute.IsDimensionCandidate)
+                    DrawCandidateOverlay(absolute);
             }
 
-            StatusText.Text = candidates.Count == 0
-                ? "Seçilen alanda güvenilir ölçü bulunamadı. Daha dar, yalnızca ölçüyü içeren alan seçin."
-                : $"{candidates.Count} ölçü adayı bulundu. Listeden seçip mevcut balona bağlayın veya yeni balon oluşturun.";
+            var dimensionCount = readings.Count(item => item.IsDimensionCandidate);
+            StatusText.Text = words.Count == 0
+                ? "Seçilen alanda OCR karakter bulamadı. Alanı yalnızca ölçüyü kapsayacak şekilde yeniden seçin veya daha yüksek çözünürlüklü PDF/görsel kullanın."
+                : $"Seçilen alanda {words.Count} kelime / {readings.Count} satır okundu; {dimensionCount} ölçü adayı. Aday olmayan OCR satırlarını da mevcut balona bağlayabilirsiniz.";
         }
         catch (Exception ex)
         {
@@ -905,18 +907,20 @@ public partial class MainWindow : Window
         try
         {
             var words = await Task.Run(() => OcrService.ReadWords(_imagePath));
-            var candidates = DimensionCandidateService.FindCandidates(words);
+            var readings = DimensionCandidateService.ReadTextLines(words);
             OcrCanvas.Children.Clear();
             _dimensionCandidates.Clear();
-            foreach (var candidate in candidates)
+            foreach (var reading in readings)
             {
-                _dimensionCandidates.Add(candidate);
-                DrawCandidateOverlay(candidate);
+                _dimensionCandidates.Add(reading);
+                if (reading.IsDimensionCandidate)
+                    DrawCandidateOverlay(reading);
             }
 
-            StatusText.Text = candidates.Count == 0
-                ? $"OCR {words.Count} kelime okudu ancak güvenilir ölçü adayı bulamadı. Genel notlar balonlanmadı; Ölçü Alanı Seç'i kullanın."
-                : $"OCR {words.Count} kelime taradı; yalnızca {candidates.Count} olası ölçü listelendi. Her adayı çizimde doğrulayın.";
+            var dimensionCount = readings.Count(item => item.IsDimensionCandidate);
+            StatusText.Text = words.Count == 0
+                ? "OCR motoru bu çizimde hiç kelime tanıyamadı. PDF/görsel çözünürlüğünü ve OCR dil dosyalarını kontrol edin; ölçü alanı seçerek tekrar deneyin."
+                : $"OCR {words.Count} kelime okudu; {readings.Count} metin satırı listelendi, {dimensionCount} satır ölçü adayı. Aday olmayan satırları da seçip balona bağlayabilirsiniz.";
         }
         catch (Exception ex)
         {
