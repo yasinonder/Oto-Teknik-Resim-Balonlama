@@ -1,4 +1,5 @@
 using System.IO;
+using ClosedXML.Excel;
 using System.Windows.Media.Imaging;
 using IxMilia.Dxf;
 using IxMilia.Dxf.Blocks;
@@ -12,6 +13,7 @@ internal static class Program
     {
         var path = Path.Combine(Path.GetTempPath(), $"wat-dxf-smoke-{Guid.NewGuid():N}.dxf");
         var projectPath = path + ".watproj";
+        var excelPath = path + ".xlsx";
         try
         {
             var file = new DxfFile();
@@ -147,6 +149,27 @@ internal static class Program
                 $"SQLite project smoke test passed: embedded {loadedProject.SourceBytes.Length} source bytes; " +
                 $"{loadedProject.BalloonsByPage.Sum(p => p.Value.Count)} balloons on " +
                 $"{loadedProject.BalloonsByPage.Count} pages, including measurement/tolerance metadata.");
+
+            InspectionReportService.ExportExcel(
+                excelPath,
+                loadedProject.SourceFileName,
+                loadedProject.BalloonsByPage);
+
+            using (var workbook = new XLWorkbook(excelPath))
+            {
+                var worksheet = workbook.Worksheet("Ölçüm Raporu");
+                if (worksheet.Cell(6, 3).GetString() != "Delik çapı" ||
+                    worksheet.Cell(6, 8).GetString() != "Uygun" ||
+                    worksheet.Cell(7, 8).GetString() != "Uygun Değil" ||
+                    worksheet.Cell(8, 3).GetString() != "Yüzey mesafesi" ||
+                    worksheet.Cell(8, 8).GetString() != "Beklemede")
+                    throw new InvalidOperationException("Excel report did not preserve balloon measurement results.");
+
+                if (!File.Exists(excelPath) || new FileInfo(excelPath).Length < 1000)
+                    throw new InvalidOperationException("Excel report file is missing or unexpectedly small.");
+            }
+
+            Console.WriteLine("Excel report smoke test passed: 3 balloon rows; Turkish characteristics and inspection results preserved.");
             return 0;
         }
         finally
@@ -155,6 +178,8 @@ internal static class Program
                 File.Delete(path);
             if (File.Exists(projectPath))
                 File.Delete(projectPath);
+            if (File.Exists(excelPath))
+                File.Delete(excelPath);
         }
     }
 }
