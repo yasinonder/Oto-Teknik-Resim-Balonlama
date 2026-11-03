@@ -16,7 +16,12 @@ public sealed record StoredBalloon(
     string LowerTolerance = "",
     string MeasuredValue = "",
     string Result = "Beklemede",
-    string Notes = "");
+    string Notes = "",
+    string DimensionText = "",
+    double DimensionLeft = -1,
+    double DimensionTop = -1,
+    double DimensionWidth = 0,
+    double DimensionHeight = 0);
 
 public sealed record InspectionProjectData(
     string SourceFileName,
@@ -28,7 +33,7 @@ public sealed record InspectionProjectData(
 
 public static class ProjectFileService
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private const long MaximumEmbeddedDrawingBytes = 1024L * 1024L * 1024L;
 
     public static void Save(
@@ -101,6 +106,11 @@ public static class ProjectFileService
                             MeasuredValue TEXT NOT NULL DEFAULT '',
                             Result TEXT NOT NULL DEFAULT 'Beklemede',
                             Notes TEXT NOT NULL DEFAULT '',
+                            DimensionText TEXT NOT NULL DEFAULT '',
+                            DimensionLeft REAL NOT NULL DEFAULT -1,
+                            DimensionTop REAL NOT NULL DEFAULT -1,
+                            DimensionWidth REAL NOT NULL DEFAULT 0,
+                            DimensionHeight REAL NOT NULL DEFAULT 0,
                             PRIMARY KEY (PageIndex, Number)
                         );
 
@@ -138,10 +148,12 @@ public static class ProjectFileService
                     command.CommandText = """
                         INSERT INTO BalloonAnnotations
                             (PageIndex, Number, X, Y, Characteristic, NominalValue,
-                             UpperTolerance, LowerTolerance, MeasuredValue, Result, Notes)
+                             UpperTolerance, LowerTolerance, MeasuredValue, Result, Notes,
+                             DimensionText, DimensionLeft, DimensionTop, DimensionWidth, DimensionHeight)
                         VALUES
                             ($page, $number, $x, $y, $characteristic, $nominal,
-                             $upper, $lower, $measured, $result, $notes);
+                             $upper, $lower, $measured, $result, $notes,
+                             $dimensionText, $dimensionLeft, $dimensionTop, $dimensionWidth, $dimensionHeight);
                         """;
                     var pageParameter = command.Parameters.Add("$page", SqliteType.Integer);
                     var numberParameter = command.Parameters.Add("$number", SqliteType.Integer);
@@ -154,6 +166,11 @@ public static class ProjectFileService
                     var measuredParameter = command.Parameters.Add("$measured", SqliteType.Text);
                     var resultParameter = command.Parameters.Add("$result", SqliteType.Text);
                     var notesParameter = command.Parameters.Add("$notes", SqliteType.Text);
+                    var dimensionTextParameter = command.Parameters.Add("$dimensionText", SqliteType.Text);
+                    var dimensionLeftParameter = command.Parameters.Add("$dimensionLeft", SqliteType.Real);
+                    var dimensionTopParameter = command.Parameters.Add("$dimensionTop", SqliteType.Real);
+                    var dimensionWidthParameter = command.Parameters.Add("$dimensionWidth", SqliteType.Real);
+                    var dimensionHeightParameter = command.Parameters.Add("$dimensionHeight", SqliteType.Real);
 
                     foreach (var page in balloonsByPage.OrderBy(item => item.Key))
                     {
@@ -170,6 +187,11 @@ public static class ProjectFileService
                             measuredParameter.Value = balloon.MeasuredValue ?? string.Empty;
                             resultParameter.Value = string.IsNullOrWhiteSpace(balloon.Result) ? "Beklemede" : balloon.Result;
                             notesParameter.Value = balloon.Notes ?? string.Empty;
+                            dimensionTextParameter.Value = balloon.DimensionText ?? string.Empty;
+                            dimensionLeftParameter.Value = balloon.DimensionLeft;
+                            dimensionTopParameter.Value = balloon.DimensionTop;
+                            dimensionWidthParameter.Value = balloon.DimensionWidth;
+                            dimensionHeightParameter.Value = balloon.DimensionHeight;
                             command.ExecuteNonQuery();
                         }
                     }
@@ -268,18 +290,26 @@ public static class ProjectFileService
         var balloonsByPage = new Dictionary<int, List<StoredBalloon>>();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = schemaVersion >= 2
+            command.CommandText = schemaVersion >= 3
                 ? """
                     SELECT PageIndex, Number, X, Y, Characteristic, NominalValue,
-                           UpperTolerance, LowerTolerance, MeasuredValue, Result, Notes
+                           UpperTolerance, LowerTolerance, MeasuredValue, Result, Notes,
+                           DimensionText, DimensionLeft, DimensionTop, DimensionWidth, DimensionHeight
                     FROM BalloonAnnotations
                     ORDER BY PageIndex, Number;
                   """
-                : """
-                    SELECT PageIndex, Number, X, Y
-                    FROM BalloonAnnotations
-                    ORDER BY PageIndex, Number;
-                  """;
+                : schemaVersion >= 2
+                    ? """
+                        SELECT PageIndex, Number, X, Y, Characteristic, NominalValue,
+                               UpperTolerance, LowerTolerance, MeasuredValue, Result, Notes
+                        FROM BalloonAnnotations
+                        ORDER BY PageIndex, Number;
+                      """
+                    : """
+                        SELECT PageIndex, Number, X, Y
+                        FROM BalloonAnnotations
+                        ORDER BY PageIndex, Number;
+                      """;
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -290,22 +320,21 @@ public static class ProjectFileService
                     balloonsByPage.Add(page, list);
                 }
 
-                list.Add(schemaVersion >= 2
+                list.Add(schemaVersion >= 3
                     ? new StoredBalloon(
-                        reader.GetInt32(1),
-                        reader.GetDouble(2),
-                        reader.GetDouble(3),
-                        reader.GetString(4),
-                        reader.GetString(5),
-                        reader.GetString(6),
-                        reader.GetString(7),
-                        reader.GetString(8),
-                        reader.GetString(9),
-                        reader.GetString(10))
-                    : new StoredBalloon(
-                        reader.GetInt32(1),
-                        reader.GetDouble(2),
-                        reader.GetDouble(3)));
+                        reader.GetInt32(1), reader.GetDouble(2), reader.GetDouble(3),
+                        reader.GetString(4), reader.GetString(5), reader.GetString(6),
+                        reader.GetString(7), reader.GetString(8), reader.GetString(9),
+                        reader.GetString(10), reader.GetString(11), reader.GetDouble(12),
+                        reader.GetDouble(13), reader.GetDouble(14), reader.GetDouble(15))
+                    : schemaVersion >= 2
+                        ? new StoredBalloon(
+                            reader.GetInt32(1), reader.GetDouble(2), reader.GetDouble(3),
+                            reader.GetString(4), reader.GetString(5), reader.GetString(6),
+                            reader.GetString(7), reader.GetString(8), reader.GetString(9),
+                            reader.GetString(10))
+                        : new StoredBalloon(
+                            reader.GetInt32(1), reader.GetDouble(2), reader.GetDouble(3)));
             }
         }
 
