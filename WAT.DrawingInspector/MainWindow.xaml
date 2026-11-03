@@ -10,7 +10,8 @@
      FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
      <Button Content="Resim Aç" Click="Open_Click" Margin="4" Padding="16,8"/>
-     <Button Content="OCR Çalıştır" Click="Ocr_Click" Margin="4" Padding="16,8"/>
+     <Button Content="OCR + Konum" Click="Ocr_Click" Margin="4" Padding="16,8"/>
+     <Button Content="OCR Alanlarını Temizle" Click="ClearOcr_Click" Margin="4" Padding="16,8"/>
      <Button Content="Balonları Temizle" Click="Clear_Click" Margin="4" Padding="16,8"/>
      <Button Content="CSV Dışa Aktar" Click="Export_Click" Margin="4" Padding="16,8"/>
     </StackPanel>
@@ -23,7 +24,8 @@
    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
    <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#DCE4E8">
     <Grid x:Name="DrawingSurface" Background="#DCE4E8" MouseLeftButtonDown="Surface_Click">
-     <Image x:Name="DrawingImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+     <Image x:Name="DrawingImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+     <Canvas x:Name="OcrCanvas" IsHitTestVisible="False"/>
      <Canvas x:Name="BalloonCanvas" IsHitTestVisible="False"/>
     </Grid>
    </ScrollViewer>
