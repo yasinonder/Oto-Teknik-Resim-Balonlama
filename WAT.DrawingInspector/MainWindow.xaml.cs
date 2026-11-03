@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         BalloonList.ItemsSource = _balloons;
+        LoadMeasurementEditor(null);
         UpdatePdfControls();
     }
 
@@ -539,8 +540,10 @@ public partial class MainWindow : Window
             var upper = ParseOptionalMeasurement(UpperToleranceTextBox.Text, "Üst tolerans");
             var measured = ParseOptionalMeasurement(MeasuredValueTextBox.Text, "Ölçülen değer");
 
-            if (lower.HasValue && upper.HasValue && lower.Value > upper.Value)
-                throw new FormatException("Alt tolerans, üst toleranstan büyük olamaz. Alt sapmayı negatif, üst sapmayı pozitif girin.");
+            if (lower.HasValue && lower.Value > 0m)
+                throw new FormatException("Alt tolerans işaretli sapma olarak sıfır veya negatif girilmelidir (örn. -0,10).");
+            if (upper.HasValue && upper.Value < 0m)
+                throw new FormatException("Üst tolerans işaretli sapma olarak sıfır veya pozitif girilmelidir (örn. +0,10).");
 
             item.Characteristic = CharacteristicTextBox.Text.Trim();
             item.NominalValue = NominalValueTextBox.Text.Trim();
@@ -570,11 +573,27 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(value))
             return null;
 
-        if (decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed) ||
-            decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out parsed))
+        var normalized = value.Trim().Replace(" ", string.Empty);
+        var commaIndex = normalized.LastIndexOf(',');
+        var dotIndex = normalized.LastIndexOf('.');
+
+        if (commaIndex >= 0 && dotIndex >= 0)
+        {
+            if (commaIndex > dotIndex)
+                normalized = normalized.Replace(".", string.Empty).Replace(',', '.');
+            else
+                normalized = normalized.Replace(",", string.Empty);
+        }
+        else if (commaIndex >= 0)
+        {
+            normalized = normalized.Replace(',', '.');
+        }
+
+        const NumberStyles styles = NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
+        if (decimal.TryParse(normalized, styles, CultureInfo.InvariantCulture, out var parsed))
             return parsed;
 
-        throw new FormatException($"{fieldName} sayısal olmalıdır. Örnek: 12,345");
+        throw new FormatException($"{fieldName} sayısal olmalıdır. Örnek: 12,345 veya 12.345");
     }
 
     private static string EvaluateMeasurement(decimal? nominal, decimal? lower, decimal? upper, decimal? measured)
@@ -814,7 +833,7 @@ public partial class MainWindow : Window
             Cell(balloon.UpperTolerance),
             Cell(balloon.MeasuredValue),
             Cell(balloon.Result),
-            Cell(balloon.Notes)) + "\\r\\n".Replace("\\\\r", "\\r").Replace("\\\\n", "\\n");
+            Cell(balloon.Notes)) + "\r\n";
     }
 
     private void Export_Click(object sender, RoutedEventArgs e)
