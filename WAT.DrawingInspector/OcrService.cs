@@ -1,3 +1,4 @@
+using System.IO;
 using Tesseract;
 
 namespace WAT.DrawingInspector;
@@ -11,7 +12,8 @@ public static class OcrService
             throw new DirectoryNotFoundException(
                 "tessdata klasörü bulunamadı. tur.traineddata ve eng.traineddata dosyalarını tessdata içine ekleyin.");
 
-        using var engine = new TesseractEngine(tessdata, "tur+eng", EngineMode.Default);
+        // The two-argument constructor uses Tesseract's default engine mode.
+        using var engine = new TesseractEngine(tessdata, "tur+eng");
         using var pix = Pix.LoadFromFile(imagePath);
         using var page = engine.Process(pix);
         using var iterator = page.GetIterator();
