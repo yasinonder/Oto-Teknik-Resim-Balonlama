@@ -15,12 +15,12 @@ public static class PdfInspectionReportService
     {
         "Sayfa", "Balon No", "Karakteristik", "Nominal",
         "Alt Tol.", "Üst Tol.", "Ölçülen", "Sonuç",
-        "X (px)", "Y (px)", "Notlar"
+        "X (px)", "Y (px)", "Çizim Ölçüsü", "Notlar"
     };
 
     private static readonly double[] ColumnWidthsCm =
     {
-        1.2, 1.4, 4.4, 2.0, 1.8, 1.8, 2.0, 2.2, 1.5, 1.5, 5.2
+        1.0, 1.2, 3.2, 1.8, 1.5, 1.5, 1.7, 1.8, 1.2, 1.2, 3.4, 4.0
     };
 
     public static void Export(
@@ -124,6 +124,7 @@ public static class PdfInspectionReportService
                     string.IsNullOrWhiteSpace(balloon.Result) ? "Beklemede" : balloon.Result,
                     balloon.X.ToString("0.0", CultureInfo.InvariantCulture),
                     balloon.Y.ToString("0.0", CultureInfo.InvariantCulture),
+                    balloon.DimensionText ?? string.Empty,
                     balloon.Notes ?? string.Empty
                 };
 
@@ -131,7 +132,7 @@ public static class PdfInspectionReportService
                 {
                     row.Cells[i].AddParagraph(values[i]);
                     row.Cells[i].Format.Font.Size = 6.5;
-                    row.Cells[i].Format.Alignment = (i == 2 || i == 10)
+                    row.Cells[i].Format.Alignment = (i == 2 || i == 10 || i == 11)
                         ? ParagraphAlignment.Left
                         : ParagraphAlignment.Center;
                 }
