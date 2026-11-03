@@ -106,8 +106,15 @@ internal static class Program
 
             var expectedBalloons = new Dictionary<int, List<StoredBalloon>>
             {
-                [0] = new() { new StoredBalloon(1, 40.5, 80.25), new StoredBalloon(2, 120.0, 200.0) },
-                [1] = new() { new StoredBalloon(1, 5.0, 6.0) }
+                [0] = new()
+                {
+                    new StoredBalloon(1, 40.5, 80.25, "Delik çapı", "10.000", "+0.015", "-0.000", "10.008", "Uygun", "Mastar ile kontrol"),
+                    new StoredBalloon(2, 120.0, 200.0, "Mil çapı", "25.000", "+0.020", "-0.020", "25.035", "Uygun Değil", "Üst limit aşıldı")
+                },
+                [1] = new()
+                {
+                    new StoredBalloon(1, 5.0, 6.0, "Yüzey mesafesi", "8.50", "+0.10", "-0.10", "", "Beklemede", "Ölçüm bekleniyor")
+                }
             };
             var expectedSequences = new Dictionary<int, int> { [0] = 3, [1] = 2 };
 
@@ -139,7 +146,7 @@ internal static class Program
             Console.WriteLine(
                 $"SQLite project smoke test passed: embedded {loadedProject.SourceBytes.Length} source bytes; " +
                 $"{loadedProject.BalloonsByPage.Sum(p => p.Value.Count)} balloons on " +
-                $"{loadedProject.BalloonsByPage.Count} pages.");
+                $"{loadedProject.BalloonsByPage.Count} pages, including measurement/tolerance metadata.");
             return 0;
         }
         finally
