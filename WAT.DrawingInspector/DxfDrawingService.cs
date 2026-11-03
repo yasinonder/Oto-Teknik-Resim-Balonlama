@@ -123,8 +123,12 @@ public static class DxfDrawingService
                 break;
             }
 
+            case DxfDimensionBase dimension:
+                ProcessDimensionBlock(scene, dimension, transform, blocks, blockStack, depth);
+                break;
+
             case DxfInsert insert:
-                ProcessInsert(scene, insert, transform, blocks, blockStack, depth);
+                ProcessInsert(scene, insert, transform, blocks, blockStack, depth, countAsEntity);
                 break;
 
             default:
@@ -139,13 +143,14 @@ public static class DxfDrawingService
         DxfTransform parentTransform,
         IReadOnlyDictionary<string, DxfBlock> blocks,
         HashSet<string> blockStack,
-        int depth)
+        int depth,
+        bool countAsEntity)
     {
         if (depth >= MaxBlockDepth || string.IsNullOrWhiteSpace(insert.Name) ||
             !blocks.TryGetValue(insert.Name, out var block) ||
             !blockStack.Add(block.Name))
         {
-            scene.UnsupportedEntityCount++;
+            if (countAsEntity) scene.UnsupportedEntityCount++;
             return;
         }
 
@@ -155,7 +160,7 @@ public static class DxfDrawingService
             var originalColumns = Math.Max(1, (int)insert.ColumnCount);
             var rows = Math.Min(originalRows, MaxBlockArrayRowsOrColumns);
             var columns = Math.Min(originalColumns, MaxBlockArrayRowsOrColumns);
-            if (rows != originalRows || columns != originalColumns)
+            if (countAsEntity && (rows != originalRows || columns != originalColumns))
                 scene.UnsupportedEntityCount++;
 
             var angle = insert.Rotation * Math.PI / 180.0;
@@ -185,10 +190,46 @@ public static class DxfDrawingService
 
                     foreach (var child in block.Entities)
                     {
-                        ProcessEntity(scene, child, worldTransform, blocks, blockStack, depth + 1);
+                        ProcessEntity(scene, child, worldTransform, blocks, blockStack, depth + 1, countAsEntity);
                     }
                 }
             }
+        }
+        finally
+        {
+            blockStack.Remove(block.Name);
+        }
+    }
+
+    private static void ProcessDimensionBlock(
+        DxfScene scene,
+        DxfDimensionBase dimension,
+        DxfTransform transform,
+        IReadOnlyDictionary<string, DxfBlock> blocks,
+        HashSet<string> blockStack,
+        int depth)
+    {
+        if (depth >= MaxBlockDepth ||
+            string.IsNullOrWhiteSpace(dimension.BlockName) ||
+            !blocks.TryGetValue(dimension.BlockName, out var block) ||
+            !blockStack.Add(block.Name))
+        {
+            scene.UnsupportedEntityCount++;
+            return;
+        }
+
+        try
+        {
+            // AutoCAD stores the visible dimension linework and annotation in the
+            // anonymous dimension block. Render that block as part of one dimension.
+            var before = scene.Primitives.Count;
+            foreach (var child in block.Entities)
+                ProcessEntity(scene, child, transform, blocks, blockStack, depth + 1, countAsEntity: false);
+
+            if (scene.Primitives.Count > before)
+                scene.SupportedEntityCount++;
+            else
+                scene.UnsupportedEntityCount++;
         }
         finally
         {
