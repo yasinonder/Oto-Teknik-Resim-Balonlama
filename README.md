@@ -10,7 +10,13 @@ C# / WPF masaüstü uygulamasıdır; Python/Tkinter değildir.
 Visual Studio'da WAT.DrawingInspector/WAT.DrawingInspector.csproj dosyasını açın ve NuGet paketlerini geri yükleyin.
 
 ## OCR dil verileri
-Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tur.traineddata ve eng.traineddata dosyalarını ekleyin.
+Kaynak kodu ilk kez hazırlarken PowerShell'de şu komutu çalıştırın:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\Download-Tessdata.ps1
+```
+
+Script, resmi Tesseract `tessdata_fast` deposundan sabitlenmiş sürümdeki `tur.traineddata` ve `eng.traineddata` dosyalarını `WAT.DrawingInspector/tessdata` klasörüne indirir ve SHA-256 özetlerini gösterir. Uygulama LSTM OCR motorunu kullanır. Dil dosyaları projede yerel olarak bulunduğunda derleme ve publish çıktısına otomatik kopyalanır; bir kez indirildikten sonra uygulamanın OCR çalışması için internet bağlantısı gerekmez. Dosyalar henüz kaynak depoya gömülü değildir; çevrimdışı kurulum için bu iki dosya önceden temin edilip aynı klasöre konmalıdır.
 
 ## Bu sürümde bulunanlar
 - PDF dosyası açma, sayfa sayısı ve önceki/sonraki sayfa gezinme
