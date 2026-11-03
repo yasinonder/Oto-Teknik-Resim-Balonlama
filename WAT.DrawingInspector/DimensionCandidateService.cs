@@ -23,11 +23,11 @@ public static class DimensionCandidateService
 {
     // Match a single dimension expression; ordinary note text is deliberately rejected.
     private static readonly Regex DimensionPattern = new(
-        @"(?<![\\p{L}\\d])(?<prefix>Ø|ø|Φ|⌀|DIA|R|M)?\\s*(?<nominal>[+-]?\\d{1,5}(?:[.,]\\d{1,4})?)(?:\\s*(?:±|\\+/-)\\s*(?<tolerance>\\d{1,4}(?:[.,]\\d{1,4})?))?(?:\\s*(?:MM|CM|IN|INCH))?(?![\\d.,])",
+        @"(?<![\p{L}\d])(?<prefix>Ø|ø|Φ|⌀|DIA|R|M)?\s*(?<nominal>[+-]?\d{1,5}(?:[.,]\d{1,4})?)(?:\s*(?:±|\+/-)\s*(?<tolerance>\d{1,4}(?:[.,]\d{1,4})?))?(?:\s*(?:MM|CM|IN|INCH))?(?![\d.,])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly Regex HarmlessRemainder = new(
-        @"[\\s\\p{P}\\p{S}]+",
+        @"[\s\p{P}\p{S}]+",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static IReadOnlyList<OcrDimensionCandidate> FindCandidates(
