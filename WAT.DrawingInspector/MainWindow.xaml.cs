@@ -762,7 +762,7 @@ public partial class MainWindow : Window
                     Padding = new Thickness(3, 1, 3, 1),
                     Child = new TextBlock
                     {
-                        Text = $"ÖLÇÜ ADAYI • %{candidate.Confidence:0}",
+                        Text = $"ADAY: {candidate.SuggestedValue} • %{candidate.Confidence:0}",
                         Foreground = Brushes.White,
                         FontSize = 10,
                         FontWeight = FontWeights.Bold
@@ -874,6 +874,7 @@ public partial class MainWindow : Window
         _balloons.Add(item);
         DrawBalloon(item);
         BalloonList.SelectedItem = item;
+        _dimensionCandidates.Remove(candidate);
         if (_pdfPath is not null)
             SaveCurrentPdfAnnotations();
 
