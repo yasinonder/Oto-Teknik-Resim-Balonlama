@@ -27,6 +27,9 @@ public partial class MainWindow : Window
     private int _nextNumber = 1;
     private string? _imagePath;
     private string? _pdfPath;
+    private string? _sourceDrawingPath;
+    private string? _sourceDisplayName;
+    private string? _currentProjectPath;
     private int _pdfPageIndex;
     private int _pdfPageCount;
     private bool _isBusy;
@@ -46,34 +49,39 @@ public partial class MainWindow : Window
         };
         if (dlg.ShowDialog() != true) return;
 
+        await LoadDrawingFileAsync(dlg.FileName, Path.GetFileName(dlg.FileName));
+    }
+
+    private async Task LoadDrawingFileAsync(string filePath, string displayName)
+    {
         SetBusy(true, "Dosya açılıyor...");
         try
         {
-            var extension = Path.GetExtension(dlg.FileName);
+            var extension = Path.GetExtension(filePath);
             if (string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase))
             {
-                var pageCount = await Task.Run(() => PdfDrawingService.GetPageCount(dlg.FileName));
+                var pageCount = await Task.Run(() => PdfDrawingService.GetPageCount(filePath));
                 if (pageCount < 1)
                     throw new InvalidDataException("PDF dosyasında görüntülenebilir sayfa bulunamadı.");
 
-                var pngBytes = await Task.Run(() => PdfDrawingService.RenderPagePng(dlg.FileName, 0));
+                var pngBytes = await Task.Run(() => PdfDrawingService.RenderPagePng(filePath, 0));
                 var bitmap = LoadBitmap(pngBytes);
                 var tempPath = GetRenderedDrawingTempPath();
                 File.WriteAllBytes(tempPath, pngBytes);
 
                 ResetAnnotations();
-                _pdfPath = dlg.FileName;
+                _pdfPath = filePath;
                 _pdfPageCount = pageCount;
                 _pdfPageIndex = 0;
                 _imagePath = tempPath;
                 ApplyBitmap(bitmap);
                 UpdatePdfControls();
-                StatusText.Text = $"{Path.GetFileName(dlg.FileName)} açıldı. Sayfa 1 / {pageCount}; PDF sayfası görüntüye dönüştürüldü.";
+                StatusText.Text = $"{displayName} açıldı. Sayfa 1 / {pageCount}; PDF sayfası görüntüye dönüştürüldü.";
             }
             else if (string.Equals(extension, ".dxf", StringComparison.OrdinalIgnoreCase))
             {
                 StatusText.Text = "DXF geometrileri okunuyor...";
-                var scene = await Task.Run(() => DxfDrawingService.LoadScene(dlg.FileName));
+                var scene = await Task.Run(() => DxfDrawingService.LoadScene(filePath));
                 var rendered = DxfDrawingService.RenderPng(scene);
                 var bitmap = LoadBitmap(rendered.PngBytes);
                 var tempPath = GetRenderedDrawingTempPath();
@@ -90,17 +98,21 @@ public partial class MainWindow : Window
             }
             else
             {
-                var bitmap = LoadBitmapFromFile(dlg.FileName);
+                var bitmap = LoadBitmapFromFile(filePath);
 
                 ResetAnnotations();
                 _pdfPath = null;
                 _pdfPageCount = 0;
                 _pdfPageIndex = 0;
-                _imagePath = dlg.FileName;
+                _imagePath = filePath;
                 ApplyBitmap(bitmap);
                 UpdatePdfControls();
-                StatusText.Text = $"{Path.GetFileName(dlg.FileName)} açıldı ({bitmap.PixelWidth} × {bitmap.PixelHeight}). Görüntü koordinatları piksel bazındadır.";
+                StatusText.Text = $"{displayName} açıldı ({bitmap.PixelWidth} × {bitmap.PixelHeight}). Görüntü koordinatları piksel bazındadır.";
             }
+
+            _sourceDrawingPath = filePath;
+            _sourceDisplayName = displayName;
+            _currentProjectPath = null;
         }
         catch (Exception ex)
         {
@@ -110,6 +122,142 @@ public partial class MainWindow : Window
         finally
         {
             SetBusy(false);
+        }
+    }
+
+    private async void OpenProject_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Filter = "WAT SQLite proje dosyası|*.watproj|SQLite veritabanı|*.db;*.sqlite;*.sqlite3|Tüm dosyalar|*.*"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        InspectionProjectData project;
+        try
+        {
+            SetBusy(true, "SQLite proje dosyası okunuyor...");
+            project = await Task.Run(() => ProjectFileService.Load(dlg.FileName));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Proje açılamadı", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText.Text = "Proje açılamadı.";
+            return;
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(project.SourceExtension))
+                throw new InvalidDataException("Proje dosyasında kaynak çizim uzantısı yok.");
+
+            var folder = Path.Combine(Path.GetTempPath(), "WAT.DrawingInspector", "Projects");
+            Directory.CreateDirectory(folder);
+            var sourcePath = Path.Combine(folder, Guid.NewGuid().ToString("N") + project.SourceExtension);
+            await Task.Run(() => File.WriteAllBytes(sourcePath, project.SourceBytes));
+
+            await LoadDrawingFileAsync(sourcePath, project.SourceFileName);
+            if (!string.Equals(_sourceDrawingPath, sourcePath, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            _currentProjectPath = dlg.FileName;
+
+            foreach (var page in project.BalloonsByPage)
+            {
+                _pdfPageBalloons[page.Key] = page.Value
+                    .Select(item => new BalloonItem { Number = item.Number, X = item.X, Y = item.Y })
+                    .ToList();
+            }
+
+            foreach (var page in project.NextNumbersByPage)
+                _pdfPageNextNumbers[page.Key] = page.Value;
+
+            if (_pdfPath is null && project.CurrentPageIndex != 0)
+                throw new InvalidDataException("Görsel/DXF projesi geçersiz bir sayfa numarası içeriyor.");
+
+            if (_pdfPath is not null && project.CurrentPageIndex >= _pdfPageCount)
+                throw new InvalidDataException("Proje dosyasındaki etkin PDF sayfası bu çizimde bulunmuyor.");
+
+            RestorePdfAnnotations(0);
+            if (_pdfPath is not null && project.CurrentPageIndex > 0)
+                await NavigatePdfPageAsync(project.CurrentPageIndex);
+
+            StatusText.Text = $"Proje açıldı: {project.SourceFileName}; {project.BalloonsByPage.Sum(p => p.Value.Count)} kayıtlı balon yüklendi.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Proje içeriği açılamadı", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText.Text = "Proje içeriği açılamadı.";
+        }
+    }
+
+    private void SaveProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_sourceDrawingPath) || !File.Exists(_sourceDrawingPath))
+        {
+            MessageBox.Show("Önce PDF, DXF veya görsel açın.");
+            return;
+        }
+
+        var defaultName = _currentProjectPath is not null
+            ? Path.GetFileName(_currentProjectPath)
+            : Path.GetFileNameWithoutExtension(_sourceDisplayName ?? _sourceDrawingPath) + ".watproj";
+
+        var dlg = new SaveFileDialog
+        {
+            Filter = "WAT SQLite proje dosyası|*.watproj",
+            FileName = defaultName,
+            AddExtension = true,
+            DefaultExt = ".watproj"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var balloonsByPage = new Dictionary<int, List<StoredBalloon>>();
+            var nextNumbersByPage = new Dictionary<int, int>();
+
+            if (_pdfPath is not null)
+            {
+                SaveCurrentPdfAnnotations();
+
+                foreach (var page in _pdfPageBalloons)
+                {
+                    balloonsByPage[page.Key] = page.Value
+                        .Select(item => new StoredBalloon(item.Number, item.X, item.Y))
+                        .ToList();
+                }
+
+                foreach (var page in _pdfPageNextNumbers)
+                    nextNumbersByPage[page.Key] = page.Value;
+            }
+            else
+            {
+                balloonsByPage[0] = _balloons
+                    .Select(item => new StoredBalloon(item.Number, item.X, item.Y))
+                    .ToList();
+                nextNumbersByPage[0] = _nextNumber;
+            }
+
+            ProjectFileService.Save(
+                dlg.FileName,
+                _sourceDrawingPath,
+                _sourceDisplayName ?? Path.GetFileName(_sourceDrawingPath),
+                _pdfPath is null ? 0 : _pdfPageIndex,
+                balloonsByPage,
+                nextNumbersByPage);
+
+            _currentProjectPath = dlg.FileName;
+            StatusText.Text = $"Proje kaydedildi: {Path.GetFileName(dlg.FileName)}; çizim ve {balloonsByPage.Sum(p => p.Value.Count)} balon SQLite dosyasına gömüldü.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Proje kaydedilemedi", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText.Text = "Proje kaydedilemedi.";
         }
     }
 
