@@ -35,19 +35,46 @@
     </Grid>
    </ScrollViewer>
    <Border Grid.Column="1" Background="White" BorderBrush="#D7E0E5" BorderThickness="1" Padding="12">
-    <DockPanel>
+    <DockPanel LastChildFill="True">
      <StackPanel DockPanel.Dock="Top">
-      <TextBlock Text="BALON LİSTESİ" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+      <TextBlock Text="BALON LİSTESİ" FontWeight="Bold" FontSize="16" Margin="0,0,0,8"/>
       <Button Content="Seçili Balonu Sil" Click="DeleteSelectedBalloon_Click"
-       HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,10"/>
+       HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,8"/>
      </StackPanel>
-     <ListView x:Name="BalloonList" SelectionChanged="BalloonList_SelectionChanged">
+     <ListView x:Name="BalloonList" SelectionChanged="BalloonList_SelectionChanged"
+      Height="190" MinHeight="150" Margin="0,0,0,10">
       <ListView.View><GridView>
-       <GridViewColumn Header="No" DisplayMemberBinding="{Binding Number}" Width="45"/>
-       <GridViewColumn Header="X (px)" DisplayMemberBinding="{Binding X}" Width="85"/>
-       <GridViewColumn Header="Y (px)" DisplayMemberBinding="{Binding Y}" Width="85"/>
+       <GridViewColumn Header="No" DisplayMemberBinding="{Binding Number}" Width="35"/>
+       <GridViewColumn Header="Özellik" DisplayMemberBinding="{Binding Characteristic}" Width="105"/>
+       <GridViewColumn Header="Sonuç" DisplayMemberBinding="{Binding Result}" Width="80"/>
       </GridView></ListView.View>
      </ListView>
+     <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+       <TextBlock Text="ÖLÇÜM VE TOLERANS" FontWeight="Bold" FontSize="15"
+        Margin="0,2,0,8"/>
+       <TextBlock Text="Karakteristik / ölçü adı" FontSize="12" Foreground="#52616B"/>
+       <TextBox x:Name="CharacteristicTextBox" Margin="0,3,0,8" Padding="6"/>
+       <TextBlock Text="Nominal değer" FontSize="12" Foreground="#52616B"/>
+       <TextBox x:Name="NominalValueTextBox" Margin="0,3,0,8" Padding="6"/>
+       <TextBlock Text="Alt tolerans / sapma (örn. -0,10)" FontSize="12" Foreground="#52616B"/>
+       <TextBox x:Name="LowerToleranceTextBox" Margin="0,3,0,8" Padding="6"/>
+       <TextBlock Text="Üst tolerans / sapma (örn. +0,10)" FontSize="12" Foreground="#52616B"/>
+       <TextBox x:Name="UpperToleranceTextBox" Margin="0,3,0,8" Padding="6"/>
+       <TextBlock Text="Ölçülen değer" FontSize="12" Foreground="#52616B"/>
+       <TextBox x:Name="MeasuredValueTextBox" Margin="0,3,0,8" Padding="6"/>
+       <TextBlock x:Name="MeasurementResultText" Text="Sonuç: Beklemede"
+        FontWeight="Bold" Foreground="#52616B" Margin="0,2,0,8"/>
+       <TextBlock Text="Notlar" FontSize="12" Foreground="#52616B"/>
+       <TextBox x:Name="NotesTextBox" Margin="0,3,0,8" Padding="6"
+        AcceptsReturn="True" TextWrapping="Wrap" MinHeight="58"
+        VerticalScrollBarVisibility="Auto"/>
+       <Button Content="Ölçü Bilgilerini Uygula" Click="ApplyMeasurement_Click"
+        Padding="10,8" Margin="0,4,0,8" Background="#173746" Foreground="White"/>
+       <TextBlock Text="Bilgi: Alt ve üst toleranslar nominal değere eklenen işaretli sapmalardır."
+        FontSize="11" Foreground="#6B7880" TextWrapping="Wrap" Margin="0,0,0,8"/>
+      </StackPanel>
+     </ScrollViewer>
     </DockPanel>
    </Border>
   </Grid>
