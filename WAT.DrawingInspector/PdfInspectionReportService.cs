@@ -40,8 +40,10 @@ public static class PdfInspectionReportService
         document.Info.Title = "WAT MOTOR A.Ş. Teknik Resim Ölçüm Raporu";
         document.Info.Subject = "Balon bazlı ölçüm ve tolerans sonuçları";
         document.Info.Author = "WAT MOTOR A.Ş.";
-        document.Styles["Normal"].Font.Name = "Arial";
-        document.Styles["Normal"].Font.Size = 8;
+        var normalStyle = document.Styles["Normal"]
+            ?? throw new InvalidOperationException("PDF raporunun varsayılan yazı stili bulunamadı.");
+        normalStyle.Font.Name = "Arial";
+        normalStyle.Font.Size = 8;
 
         var section = document.AddSection();
         section.PageSetup.PageFormat = PageFormat.A4;
