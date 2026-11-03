@@ -30,7 +30,9 @@ Script, resmi Tesseract `tessdata_fast` deposundan sabitlenmiş sürümdeki `tur
 - Geometriyi en-boy oranını koruyarak en fazla 5000 px kenar boyutunda rasterleştirme
 - PNG/JPG/JPEG/BMP/TIFF görsel açma
 - Görsel, PDF veya DXF üzerinde manuel balon yerleştirme
-- Tesseract Türkçe + İngilizce OCR; genel notları otomatik balon adayı yapmayan, sıkı satır hizalama ve güven filtresi kullanan ölçü adayı çıkarımı
+- Tesseract Türkçe + İngilizce OCR; orijinal görüntüye ek olarak büyütülmüş görüntüde SparseText ve Auto sayfa düzeni modlarıyla birden fazla OCR geçişi
+- OCR motorunun tanıdığı tüm metin satırlarını sonuç listesinde gösterme; ölçü adayı filtresini metin tanıma işleminden ayrı tutma. Filtrenin aday kabul etmediği okunan metin de kullanıcı tarafından seçilip balona bağlanabilir
+- PDF/raster çizimlerde küçük ölçü yazıları için seçilen alanı 1,5–4 kat büyüterek ayrıca OCR yapma; farklı Tesseract sayfa düzeni modlarını kullanma
 - OCR ekranında yalnızca ölçü adaylarını gösterme; açıklama, standart notu ve diğer genel yazıları otomatik olarak işaretlememe
 - Kullanıcının çizim üzerinde fareyle alan seçerek yalnızca seçilen bölgeyi OCR ile okuması
 - Seçilen ölçüyü mevcut balona bağlama veya ölçünün yanına yeni balon oluşturma; orijinal ölçü metnini, nominal/tolerans önerisini ve çizimdeki alan koordinatlarını saklama
@@ -54,7 +56,7 @@ Script, resmi Tesseract `tessdata_fast` deposundan sabitlenmiş sürümdeki `tur
 - DXF çizimi raster görüntüye dönüştürülür. Orijinal vektör nesneleri bu aşamada düzenlenebilir CAD modeli olarak tutulmaz ve DXF'e geri yazılmaz.
 - DWG desteği bu projenin dağıtım kapsamına alınmamıştır. Ticari lisans veya ayrıca onay gerektirebilecek DWG dönüştürücü/SDK paketlenmeyecektir. Bu nedenle taşınabilir ZIP; PDF, DXF ve PNG/JPG/JPEG/BMP/TIFF dosyalarını destekleyecek şekilde hazırlanacaktır.
 - PDF sayfaları PDFium üzerinden raster görüntüye dönüştürülür; PDF vektör nesneleri doğrudan analiz edilmez.
-- OCR ölçü adayları sezgisel metin eşleştirmesidir: aynı satırda tek bir ölçü ifadesi, uygun metin kalıbı ve güven eşiği aranır; genel not metinleri ve çoklu sayısal ifadeler elenir. OCR tahmini kesin ölçüm değildir. Balona bağlanan ham ölçü metni saklanır; nominal ve tolerans alanları öneri olarak doldurulur ve kullanıcı tarafından doğrulanmalıdır. Seçim alanı OCR doğruluğunu iyileştirebilir ancak mühendis onayının yerini almaz.
+- OCR motoru teknik resimdeki her kelimeyi tanımayabilir. Sistem önce tanınan metinleri listeler; ölçü sınıflandırması bunların alt kümesine öneri üretir. Ölçü filtresi metni aday saymasa bile ham OCR metni listeden elle balona bağlanabilir. OCR tahmini kesin ölçüm değildir. Balona bağlanan ham ölçü metni saklanır; nominal ve tolerans alanları öneri olarak doldurulur ve kullanıcı tarafından doğrulanmalıdır. Seçim alanı OCR doğruluğunu iyileştirebilir ancak mühendis onayının yerini almaz.
 - OCR çıktısı ölçüm doğruluğu veya teknik uygunluk onayı değildir. Kritik ölçüler kullanıcı tarafından doğrulanmalıdır.
 
 ## Henüz tamamlanmayanlar
