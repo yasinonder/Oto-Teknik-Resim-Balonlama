@@ -26,10 +26,15 @@ Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tu
 - Görsel, PDF veya DXF üzerinde manuel balon yerleştirme
 - Tesseract Türkçe + İngilizce OCR ve kelime konum kutuları
 - Balon seçme, sürükleyerek taşıma ve seçili balonu tek tek silme
-- Balon listesini CSV dışa aktarma; PDF sayfa numarasını dosyaya yazma
+- Balon listesini CSV dışa aktarma; sayfa, koordinat ve ölçüm alanlarını yazma
+- Seçili balon için karakteristik adı, nominal değer, alt/üst tolerans sapması, ölçülen değer ve not girişi
+- İşaretli tolerans sapmalarına göre otomatik Uygun / Uygun Değil / Beklemede değerlendirmesi
 - `.watproj` SQLite projesine kaynak çizimi BLOB olarak gömme
-- PDF sayfalarına göre balonları ve sonraki balon numaralarını SQLite tablolarında kalıcı saklama
-- SQLite proje açma/kaydetme; taşınabilir tek proje dosyası
+- PDF sayfalarına göre balonları, ölçüm verilerini ve sonraki balon numaralarını kalıcı saklama
+- SQLite proje açma/kaydetme; tek dosyalı proje
+- Excel `.xlsx` ölçüm raporu: sayfa/balon bilgileri, ölçüler, toleranslar, sonuç renklendirmesi ve filtre
+- PDF ölçüm raporu: A4 yatay tablo, sayfa/balon bilgileri, toleranslar ve sonuç renklendirmesi
+- Üç farklı ölçüm sonucu için SQLite, Excel ve PDF çıktılarını sınayan Windows smoke testleri
 
 ## Teknik sınırlar
 - DXF 2B geometri aşamasındadır. DIMENSION görüntüsü, ölçü varlığının BlockName ile işaret ettiği blokta mevcut geometrinin rasterleştirilmesi yoluyla gösterilir; blok bulunmuyorsa ölçü varlığı desteklenmeyen olarak sayılır. Ölçü değerinin parametrelerden yeniden hesaplanması veya doğruluk onayı henüz yapılmaz. HATCH, SPLINE, MLEADER, 3B yüzey/katı, raster referansları, özel nesneler ve diğer desteklenmeyen varlıklar henüz çizime aktarılmaz; açılışta desteklenmeyen varlık sayısı bildirilir.
@@ -43,8 +48,8 @@ Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tu
 1. DIMENSION için alternatif fallback geometrileri; HATCH/SPLINE görüntülenmesi
 2. DWG için ticari kullanım koşulları doğrulanmış dönüştürme/SDK entegrasyonu
 3. Otomatik ölçü tanıma ve otomatik balonlama
-4. Balonlara ölçü değeri, tolerans, karakteristik adı ve kontrol sonucu alanları ekleme
-5. Excel ve PDF kontrol raporları
-6. SQLite proje verisini rapor/ölçüm sonuçlarıyla genişletme
-7. Tesseract dil verilerinin uygulama paketine lisans/dağıtım kontrolüyle eklenmesi
-8. Self-contained x64 yayın ve taşınabilir ZIP
+4. OCR Türkçe ve İngilizce traineddata dosyalarının uygun lisans bildirimiyle dağıtım paketine eklenmesi
+5. Otomatik ölçü metni tanıma, ölçü adayı önerme ve kullanıcı onaylı otomatik balonlama
+6. DXF için HATCH/SPLINE ve daha kapsamlı teknik çizim varlık desteği
+7. DWG için ticari kullanım koşulları doğrulanmış dönüştürücü/SDK entegrasyonu
+8. Self-contained x64 yayın, gerçek Windows istemci testi ve taşınabilir ZIP
