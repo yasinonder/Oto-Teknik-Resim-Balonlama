@@ -1,24 +1,27 @@
 <Window x:Class="WAT.DrawingInspector.MainWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="WAT Teknik Resim Balonlama" Height="850" Width="1400"
+ Title="WAT Teknik Resim Balonlama" Height="900" Width="1540" MinWidth="1200"
  WindowStartupLocation="CenterScreen" Background="#F3F6F8">
  <DockPanel>
-  <Border DockPanel.Dock="Top" Background="#173746" Padding="14">
-   <DockPanel>
+  <Border DockPanel.Dock="Top" Background="#173746" Padding="12">
+   <DockPanel LastChildFill="True">
     <TextBlock Text="WAT MOTOR A.Ş. | TEKNİK RESİM BALONLAMA" Foreground="White"
-     FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+     FontSize="19" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,18,0"/>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-     <Button Content="Resim Aç" Click="Open_Click" Margin="4" Padding="16,8"/>
-     <Button Content="OCR + Konum" Click="Ocr_Click" Margin="4" Padding="16,8"/>
-     <Button Content="OCR Alanlarını Temizle" Click="ClearOcr_Click" Margin="4" Padding="16,8"/>
-     <Button Content="Balonları Temizle" Click="Clear_Click" Margin="4" Padding="16,8"/>
-     <Button Content="CSV Dışa Aktar" Click="Export_Click" Margin="4" Padding="16,8"/>
+     <Button x:Name="OpenButton" Content="Resim / PDF Aç" Click="Open_Click" Margin="3" Padding="12,7"/>
+     <Button x:Name="PdfPrevButton" Content="◀ Önceki" Click="PdfPrevious_Click" Margin="3" Padding="10,7" IsEnabled="False"/>
+     <TextBlock x:Name="PdfPageText" Text="PDF yok" Foreground="White" VerticalAlignment="Center" Margin="8,0"/>
+     <Button x:Name="PdfNextButton" Content="Sonraki ▶" Click="PdfNext_Click" Margin="3" Padding="10,7" IsEnabled="False"/>
+     <Button x:Name="OcrButton" Content="OCR + Konum" Click="Ocr_Click" Margin="3" Padding="12,7" IsEnabled="False"/>
+     <Button Content="OCR Alanlarını Temizle" Click="ClearOcr_Click" Margin="3" Padding="10,7"/>
+     <Button Content="Balonları Temizle" Click="Clear_Click" Margin="3" Padding="10,7"/>
+     <Button Content="CSV Dışa Aktar" Click="Export_Click" Margin="3" Padding="10,7"/>
     </StackPanel>
    </DockPanel>
   </Border>
   <Border DockPanel.Dock="Bottom" Background="White" Padding="8">
-   <TextBlock x:Name="StatusText" Text="Hazır. Teknik resim açın; manuel balon eklemek için resim üzerinde tıklayın."/>
+   <TextBlock x:Name="StatusText" Text="Hazır. Teknik resim veya PDF açın; manuel balon eklemek için resim üzerinde tıklayın."/>
   </Border>
   <Grid>
    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
