@@ -17,6 +17,26 @@ internal static class Program
         var pdfReportPath = path + ".report.pdf";
         try
         {
+            var ocrWords = new[]
+            {
+                new OcrWord("Ø", 12, 100, 10, 10, 95),
+                new OcrWord("10,5", 24, 100, 25, 10, 92),
+                new OcrWord("±0,1", 53, 100, 24, 10, 90),
+                new OcrWord("TOL", 12, 150, 16, 10, 97),
+                new OcrWord("2X", 34, 150, 15, 10, 97),
+                new OcrWord("20", 53, 150, 20, 10, 97),
+                new OcrWord("45", 12, 200, 18, 10, 25)
+            };
+            var candidates = DimensionCandidateService.FindCandidates(ocrWords);
+            if (candidates.Count != 1 ||
+                candidates[0].SuggestedValue != "10,5" ||
+                !candidates[0].OcrText.Contains("±0,1", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "OCR dimension candidate recognition must keep one unambiguous diameter/tolerance line and skip multi-value/low-confidence lines.");
+
+            Console.WriteLine(
+                $"OCR dimension candidate smoke test passed: one reviewed candidate '{candidates[0].OcrText}' at %{candidates[0].Confidence:0} confidence.");
+
             var file = new DxfFile();
             // LWPOLYLINE requires DXF R14 or newer.
             file.Header.Version = DxfAcadVersion.R2010;
