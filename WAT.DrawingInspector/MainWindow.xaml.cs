@@ -35,14 +35,15 @@ public partial class MainWindow : Window
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "PDF ve Görseller|*.pdf;*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|PDF dosyaları|*.pdf|Görseller|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|Tüm dosyalar|*.*"
+            Filter = "Teknik resim ve görseller|*.pdf;*.dxf;*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|PDF dosyaları|*.pdf|DXF dosyaları|*.dxf|Görseller|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|Tüm dosyalar|*.*"
         };
         if (dlg.ShowDialog() != true) return;
 
         SetBusy(true, "Dosya açılıyor...");
         try
         {
-            if (string.Equals(Path.GetExtension(dlg.FileName), ".pdf", StringComparison.OrdinalIgnoreCase))
+            var extension = Path.GetExtension(dlg.FileName);
+            if (string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase))
             {
                 var pageCount = await Task.Run(() => PdfDrawingService.GetPageCount(dlg.FileName));
                 if (pageCount < 1)
@@ -50,7 +51,7 @@ public partial class MainWindow : Window
 
                 var pngBytes = await Task.Run(() => PdfDrawingService.RenderPagePng(dlg.FileName, 0));
                 var bitmap = LoadBitmap(pngBytes);
-                var tempPath = GetPdfPageTempPath();
+                var tempPath = GetRenderedDrawingTempPath();
                 File.WriteAllBytes(tempPath, pngBytes);
 
                 ResetAnnotations();
@@ -61,6 +62,24 @@ public partial class MainWindow : Window
                 ApplyBitmap(bitmap);
                 UpdatePdfControls();
                 StatusText.Text = $"{Path.GetFileName(dlg.FileName)} açıldı. Sayfa 1 / {pageCount}; PDF sayfası görüntüye dönüştürüldü.";
+            }
+            else if (string.Equals(extension, ".dxf", StringComparison.OrdinalIgnoreCase))
+            {
+                StatusText.Text = "DXF geometrileri okunuyor...";
+                var scene = await Task.Run(() => DxfDrawingService.LoadScene(dlg.FileName));
+                var rendered = DxfDrawingService.RenderPng(scene);
+                var bitmap = LoadBitmap(rendered.PngBytes);
+                var tempPath = GetRenderedDrawingTempPath();
+                File.WriteAllBytes(tempPath, rendered.PngBytes);
+
+                ResetAnnotations();
+                _pdfPath = null;
+                _pdfPageCount = 0;
+                _pdfPageIndex = 0;
+                _imagePath = tempPath;
+                ApplyBitmap(bitmap);
+                UpdatePdfControls();
+                StatusText.Text = $"DXF açıldı: {rendered.SupportedEntityCount} desteklenen geometrik varlık; {rendered.UnsupportedEntityCount} desteklenmeyen varlık atlandı. Görüntü {rendered.PixelWidth} × {rendered.PixelHeight} px.";
             }
             else
             {
@@ -109,11 +128,11 @@ public partial class MainWindow : Window
             var pdfPath = _pdfPath;
             var pngBytes = await Task.Run(() => PdfDrawingService.RenderPagePng(pdfPath, targetPage));
             var bitmap = LoadBitmap(pngBytes);
-            File.WriteAllBytes(GetPdfPageTempPath(), pngBytes);
+            File.WriteAllBytes(GetRenderedDrawingTempPath(), pngBytes);
 
             SaveCurrentPdfAnnotations();
             _pdfPageIndex = targetPage;
-            _imagePath = GetPdfPageTempPath();
+            _imagePath = GetRenderedDrawingTempPath();
             ApplyBitmap(bitmap);
             RestorePdfAnnotations(targetPage);
             UpdatePdfControls();
@@ -168,11 +187,11 @@ public partial class MainWindow : Window
         return bitmap;
     }
 
-    private static string GetPdfPageTempPath()
+    private static string GetRenderedDrawingTempPath()
     {
         var folder = Path.Combine(Path.GetTempPath(), "WAT.DrawingInspector");
         Directory.CreateDirectory(folder);
-        return Path.Combine(folder, "current-pdf-page.png");
+        return Path.Combine(folder, "current-rendered-drawing.png");
     }
 
     private void ResetAnnotations()
@@ -267,7 +286,7 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(_imagePath))
         {
-            MessageBox.Show("Önce bir görsel veya PDF açın.");
+            MessageBox.Show("Önce bir görsel, PDF veya DXF açın.");
             return;
         }
 
