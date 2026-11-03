@@ -29,13 +29,17 @@
     <Grid x:Name="DrawingSurface" Background="#DCE4E8" MouseLeftButtonDown="Surface_Click">
      <Image x:Name="DrawingImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top"/>
      <Canvas x:Name="OcrCanvas" IsHitTestVisible="False"/>
-     <Canvas x:Name="BalloonCanvas" IsHitTestVisible="False"/>
+     <Canvas x:Name="BalloonCanvas" IsHitTestVisible="True"/>
     </Grid>
    </ScrollViewer>
    <Border Grid.Column="1" Background="White" BorderBrush="#D7E0E5" BorderThickness="1" Padding="12">
     <DockPanel>
-     <TextBlock DockPanel.Dock="Top" Text="BALON LİSTESİ" FontWeight="Bold" FontSize="16" Margin="0,0,0,12"/>
-     <ListView x:Name="BalloonList">
+     <StackPanel DockPanel.Dock="Top">
+      <TextBlock Text="BALON LİSTESİ" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+      <Button Content="Seçili Balonu Sil" Click="DeleteSelectedBalloon_Click"
+       HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,10"/>
+     </StackPanel>
+     <ListView x:Name="BalloonList" SelectionChanged="BalloonList_SelectionChanged">
       <ListView.View><GridView>
        <GridViewColumn Header="No" DisplayMemberBinding="{Binding Number}" Width="45"/>
        <GridViewColumn Header="X (px)" DisplayMemberBinding="{Binding X}" Width="85"/>
