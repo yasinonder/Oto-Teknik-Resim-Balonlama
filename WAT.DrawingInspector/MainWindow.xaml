@@ -98,8 +98,8 @@
         Padding="8,7" Margin="0,0,0,12" Background="#173746" Foreground="White"/>
 
        <TextBlock Text="SEÇİLİ BALONUN ÖLÇÜ BİLGİSİ" FontWeight="Bold" FontSize="14" Margin="0,0,0,7"/>
-       <TextBlock Text="Çizimden okunan orijinal ölçü" FontSize="12" Foreground="#52616B"/>
-       <TextBox x:Name="DimensionTextBox" Margin="0,3,0,8" Padding="6" IsReadOnly="True"
+       <TextBlock Text="Çizimden okunan orijinal ölçü (düzenlenebilir)" FontSize="12" Foreground="#52616B"/>
+       <TextBox x:Name="DimensionTextBox" Margin="0,3,0,8" Padding="6"
         Background="#F0F4F6" TextWrapping="Wrap" MinHeight="34"/>
        <TextBlock Text="Karakteristik / ölçü adı" FontSize="12" Foreground="#52616B"/>
        <TextBox x:Name="CharacteristicTextBox" Margin="0,3,0,7" Padding="6"/>
