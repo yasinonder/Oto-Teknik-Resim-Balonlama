@@ -1,0 +1,22 @@
+name: WPF Build
+
+on:
+  push:
+    branches: [ "wpf-ocr-foundation" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore .\WAT.DrawingInspector\WAT.DrawingInspector.csproj
+      - name: Build
+        run: dotnet build .\WAT.DrawingInspector\WAT.DrawingInspector.csproj --configuration Release --no-restore
