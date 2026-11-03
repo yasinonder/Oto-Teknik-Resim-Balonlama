@@ -13,6 +13,8 @@ internal static class Program
         try
         {
             var file = new DxfFile();
+            // LWPOLYLINE requires DXF R14 or newer.
+            file.Header.Version = DxfAcadVersion.R2010;
             file.Entities.Add(new DxfLine(
                 new DxfPoint(0, 0, 0),
                 new DxfPoint(100, 60, 0)));
@@ -32,9 +34,9 @@ internal static class Program
             file.Save(path);
 
             var scene = DxfDrawingService.LoadScene(path);
-            if (scene.SupportedEntityCount != 5)
+            if (scene.SupportedEntityCount != 5 || scene.UnsupportedEntityCount != 0)
                 throw new InvalidOperationException(
-                    $"Expected 5 supported DXF entities, got {scene.SupportedEntityCount}.");
+                    $"Expected 5 supported DXF entities and 0 skipped, got {scene.SupportedEntityCount} supported / {scene.UnsupportedEntityCount} skipped.");
 
             var rendered = DxfDrawingService.RenderPng(scene);
             if (rendered.PngBytes.Length < 100)
