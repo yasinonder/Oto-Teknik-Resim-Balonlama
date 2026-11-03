@@ -67,12 +67,11 @@ internal static class Program
             }
 
             var bitmap = new RenderTargetBitmap(1500, 600, 96, 96, PixelFormats.Pbgra32);
-                bitmap.Render(visual);
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using var output = File.Create(ocrFixturePath);
+            bitmap.Render(visual);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var output = File.Create(ocrFixturePath))
                 encoder.Save(output);
-            }
 
             var realOcrWords = OcrService.ReadWords(ocrFixturePath);
             var realOcrCandidates = DimensionCandidateService.FindCandidates(realOcrWords);
