@@ -51,12 +51,38 @@ internal static class Program
             };
             file.Entities.Add(insert);
 
+            // A simplified aligned dimension represented by its anonymous dimension block.
+            var dimensionBlock = new DxfBlock { Name = "*D1" };
+            dimensionBlock.BasePoint = new DxfPoint(0, 0, 0);
+            dimensionBlock.Entities.Add(new DxfLine(
+                new DxfPoint(10, 18, 0), new DxfPoint(90, 18, 0)));
+            dimensionBlock.Entities.Add(new DxfLine(
+                new DxfPoint(10, 0, 0), new DxfPoint(10, 18, 0)));
+            dimensionBlock.Entities.Add(new DxfLine(
+                new DxfPoint(90, 0, 0), new DxfPoint(90, 18, 0)));
+            dimensionBlock.Entities.Add(new DxfLine(
+                new DxfPoint(10, 18, 0), new DxfPoint(16, 20, 0)));
+            dimensionBlock.Entities.Add(new DxfText(
+                new DxfPoint(45, 20, 0), 3.0, "80"));
+            file.Blocks.Add(dimensionBlock);
+
+            var dimension = new DxfAlignedDimension
+            {
+                BlockName = "*D1",
+                DefinitionPoint1 = new DxfPoint(10, 0, 0),
+                DefinitionPoint2 = new DxfPoint(90, 0, 0),
+                DefinitionPoint3 = new DxfPoint(10, 18, 0),
+                TextMidPoint = new DxfPoint(50, 20, 0),
+                Text = "80"
+            };
+            file.Entities.Add(dimension);
+
             file.Save(path);
 
             var scene = DxfDrawingService.LoadScene(path);
-            if (scene.SupportedEntityCount != 7 || scene.UnsupportedEntityCount != 0)
+            if (scene.SupportedEntityCount != 8 || scene.UnsupportedEntityCount != 0)
                 throw new InvalidOperationException(
-                    $"Expected 7 supported DXF entities and 0 skipped, got {scene.SupportedEntityCount} supported / {scene.UnsupportedEntityCount} skipped.");
+                    $"Expected 8 supported DXF entities including one dimension and 0 skipped, got {scene.SupportedEntityCount} supported / {scene.UnsupportedEntityCount} skipped.");
 
             var rendered = DxfDrawingService.RenderPng(scene);
             if (rendered.PngBytes.Length < 100)
@@ -74,7 +100,7 @@ internal static class Program
                 throw new InvalidOperationException("Rendered PNG dimensions do not match the render result.");
 
             Console.WriteLine(
-                $"DXF smoke test passed: {rendered.SupportedEntityCount} entities including a transformed block; " +
+                $"DXF smoke test passed: {rendered.SupportedEntityCount} entities including a transformed block and dimension; " +
                 $"{rendered.PixelWidth}x{rendered.PixelHeight}px; {rendered.PngBytes.Length} bytes.");
             return 0;
         }
