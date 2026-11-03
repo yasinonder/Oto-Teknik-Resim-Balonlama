@@ -14,6 +14,7 @@ internal static class Program
         var path = Path.Combine(Path.GetTempPath(), $"wat-dxf-smoke-{Guid.NewGuid():N}.dxf");
         var projectPath = path + ".watproj";
         var excelPath = path + ".xlsx";
+        var pdfReportPath = path + ".report.pdf";
         try
         {
             var file = new DxfFile();
@@ -170,6 +171,22 @@ internal static class Program
             }
 
             Console.WriteLine("Excel report smoke test passed: 3 balloon rows; Turkish characteristics and inspection results preserved.");
+
+            PdfInspectionReportService.Export(
+                pdfReportPath,
+                loadedProject.SourceFileName,
+                loadedProject.BalloonsByPage);
+
+            if (!File.Exists(pdfReportPath) ||
+                new FileInfo(pdfReportPath).Length < 1000 ||
+                PdfDrawingService.GetPageCount(pdfReportPath) < 1)
+                throw new InvalidOperationException("PDF report is missing, empty, or cannot be parsed.");
+
+            var renderedReportPage = PdfDrawingService.RenderPagePng(pdfReportPath, 0);
+            if (renderedReportPage.Length < 100)
+                throw new InvalidOperationException("PDF report page could not be rendered.");
+
+            Console.WriteLine("PDF report smoke test passed: generated PDF opened and first page rendered.");
             return 0;
         }
         finally
@@ -180,6 +197,8 @@ internal static class Program
                 File.Delete(projectPath);
             if (File.Exists(excelPath))
                 File.Delete(excelPath);
+            if (File.Exists(pdfReportPath))
+                File.Delete(pdfReportPath);
         }
     }
 }
