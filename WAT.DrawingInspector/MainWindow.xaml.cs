@@ -1101,6 +1101,159 @@ public partial class MainWindow : Window
         }
     }
 
+    private void EditReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_sourceDisplayName))
+        {
+            MessageBox.Show("Önce bir PDF, DXF veya görsel açın.", "Rapor tablosu",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var rows = new ObservableCollection<BalloonItem>();
+        if (_pdfPath is not null)
+        {
+            SaveCurrentPdfAnnotations();
+            foreach (var page in _pdfPageBalloons.OrderBy(pair => pair.Key))
+            {
+                var items = page.Key == _pdfPageIndex ? _balloons : page.Value;
+                foreach (var item in items)
+                {
+                    item.PageNumber = page.Key + 1;
+                    rows.Add(item);
+                }
+            }
+        }
+        else
+        {
+            foreach (var item in _balloons)
+            {
+                item.PageNumber = 1;
+                rows.Add(item);
+            }
+        }
+
+        var grid = new DataGrid
+        {
+            ItemsSource = rows,
+            AutoGenerateColumns = false,
+            CanUserAddRows = false,
+            CanUserDeleteRows = false,
+            CanUserReorderColumns = true,
+            CanUserResizeColumns = true,
+            CanUserSortColumns = true,
+            IsReadOnly = false,
+            SelectionUnit = DataGridSelectionUnit.FullRow,
+            GridLinesVisibility = DataGridGridLinesVisibility.All,
+            AlternatingRowBackground = new SolidColorBrush(Color.FromRgb(242, 246, 248)),
+            HeadersVisibility = DataGridHeadersVisibility.Column,
+            Margin = new Thickness(10)
+        };
+
+        void AddColumn(string header, string property, double width, bool readOnly = false)
+        {
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = header,
+                Binding = new System.Windows.Data.Binding(property)
+                {
+                    Mode = BindingMode.TwoWay,
+                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                },
+                Width = new DataGridLength(width, DataGridLengthUnitType.Star),
+                IsReadOnly = readOnly
+            });
+        }
+
+        AddColumn("Sayfa", nameof(BalloonItem.PageNumber), 0.45, true);
+        AddColumn("Balon", nameof(BalloonItem.Number), 0.45, true);
+        AddColumn("Çizimden okunan ölçü", nameof(BalloonItem.DimensionText), 1.35, true);
+        AddColumn("Karakteristik", nameof(BalloonItem.Characteristic), 1.1);
+        AddColumn("Nominal", nameof(BalloonItem.NominalValue), 0.7);
+        AddColumn("Alt tol.", nameof(BalloonItem.LowerTolerance), 0.65);
+        AddColumn("Üst tol.", nameof(BalloonItem.UpperTolerance), 0.65);
+        AddColumn("Ölçülen", nameof(BalloonItem.MeasuredValue), 0.7);
+        AddColumn("Sonuç", nameof(BalloonItem.Result), 0.7, true);
+        AddColumn("Notlar", nameof(BalloonItem.Notes), 1.5);
+
+        void RecalculateResults()
+        {
+            foreach (var item in rows)
+            {
+                try
+                {
+                    var nominal = ParseOptionalMeasurement(item.NominalValue, "Nominal değer");
+                    var lower = ParseOptionalMeasurement(item.LowerTolerance, "Alt tolerans");
+                    var upper = ParseOptionalMeasurement(item.UpperTolerance, "Üst tolerans");
+                    var measured = ParseOptionalMeasurement(item.MeasuredValue, "Ölçülen değer");
+                    if ((lower.HasValue && lower.Value > 0m) || (upper.HasValue && upper.Value < 0m))
+                    {
+                        item.Result = "Beklemede";
+                        continue;
+                    }
+                    item.Result = EvaluateMeasurement(nominal, lower, upper, measured);
+                }
+                catch (FormatException)
+                {
+                    item.Result = "Beklemede";
+                }
+            }
+            BalloonList.Items.Refresh();
+        }
+
+        grid.CellEditEnding += (_, _) =>
+            Dispatcher.BeginInvoke(new Action(RecalculateResults),
+                System.Windows.Threading.DispatcherPriority.Background);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(10)
+        };
+        var saveButton = new Button { Content = "Değişiklikleri Uygula", Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(4) };
+        var closeButton = new Button { Content = "Kapat", Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(4) };
+        buttons.Children.Add(saveButton);
+        buttons.Children.Add(closeButton);
+
+        var root = new DockPanel();
+        DockPanel.SetDock(buttons, Dock.Bottom);
+        root.Children.Add(buttons);
+        root.Children.Add(grid);
+
+        var editor = new Window
+        {
+            Title = "WAT | Ölçüm Raporu — Program İçi Düzenleme",
+            Width = 1580,
+            Height = 760,
+            MinWidth = 1100,
+            MinHeight = 500,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = Brushes.White,
+            Content = root
+        };
+
+        saveButton.Click += (_, _) =>
+        {
+            grid.CommitEdit(DataGridEditingUnit.Cell, true);
+            grid.CommitEdit(DataGridEditingUnit.Row, true);
+            RecalculateResults();
+
+            if (_pdfPath is not null)
+            {
+                foreach (var page in rows.GroupBy(item => item.PageNumber - 1))
+                    _pdfPageBalloons[page.Key] = page.OrderBy(item => item.Number).ToList();
+                SaveCurrentPdfAnnotations();
+            }
+
+            StatusText.Text = $"Rapor tablosundaki {rows.Count} karakteristik güncellendi. Projeyi kaydetmeyi unutmayın.";
+            editor.Close();
+        };
+        closeButton.Click += (_, _) => editor.Close();
+        editor.ShowDialog();
+    }
+
     private void ExportExcel_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(_sourceDisplayName))
@@ -1226,6 +1379,7 @@ public sealed class BalloonItem : INotifyPropertyChanged
     private double _dimensionTop = -1;
     private double _dimensionWidth;
     private double _dimensionHeight;
+    private int _pageNumber = 1;
 
     public int Number
     {
@@ -1297,6 +1451,7 @@ public sealed class BalloonItem : INotifyPropertyChanged
     public double DimensionTop { get => _dimensionTop; set => SetField(ref _dimensionTop, value); }
     public double DimensionWidth { get => _dimensionWidth; set => SetField(ref _dimensionWidth, value); }
     public double DimensionHeight { get => _dimensionHeight; set => SetField(ref _dimensionHeight, value); }
+    public int PageNumber { get => _pageNumber; set => SetField(ref _pageNumber, value); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
