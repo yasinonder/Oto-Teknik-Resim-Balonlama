@@ -13,5 +13,6 @@
     <PackageReference Include="IxMilia.Dxf" Version="0.8.4" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.33" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="PDFsharp-MigraDoc-WPF" Version="6.2.4" />
   </ItemGroup>
 </Project>
