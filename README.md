@@ -25,6 +25,7 @@ Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tu
 - PNG/JPG/JPEG/BMP/TIFF görsel açma
 - Görsel, PDF veya DXF üzerinde manuel balon yerleştirme
 - Tesseract Türkçe + İngilizce OCR ve kelime konum kutuları
+- Tesseract OCR satırlarından tek ve açık sayısal ölçü ifadesi içeren adayları ayıklama; adayları çizimde turuncu kutuyla gösterme ve kullanıcı onayıyla yakınına balon ekleme
 - Balon seçme, sürükleyerek taşıma ve seçili balonu tek tek silme
 - Balon listesini CSV dışa aktarma; sayfa, koordinat ve ölçüm alanlarını yazma
 - Seçili balon için karakteristik adı, nominal değer, alt/üst tolerans sapması, ölçülen değer ve not girişi
@@ -42,6 +43,7 @@ Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tu
 - DXF çizimi raster görüntüye dönüştürülür. Orijinal vektör nesneleri bu aşamada düzenlenebilir CAD modeli olarak tutulmaz ve DXF'e geri yazılmaz.
 - DWG açma bu sürümde yoktur. ODA File Converter Windows için komut satırı sunar; ODA, üye olmayanların bu aracı ticari olmayan uygulamalar için kullanabileceğini belirtir. Şirket içi/ticari kullanım için ODA ile uygun lisans/izin teyit edilmeden bu araç uygulamaya gömülmez veya paketlenmez.
 - PDF sayfaları PDFium üzerinden raster görüntüye dönüştürülür; PDF vektör nesneleri doğrudan analiz edilmez.
+- OCR ölçü adayları sezgisel metin eşleştirmesidir: bir satırda tek sayısal ölçü ifadesi aranır; çoklu sayısal değer içeren satırlar belirsiz kabul edilip atlanır. Öneri balonları nominal değer olarak otomatik kaydedilmez; ölçü ve tolerans kullanıcı tarafından doğrulanmalıdır.
 - OCR çıktısı ölçüm doğruluğu veya teknik uygunluk onayı değildir. Kritik ölçüler kullanıcı tarafından doğrulanmalıdır.
 
 ## Henüz tamamlanmayanlar
@@ -49,7 +51,7 @@ Uygulama çalıştırma klasöründe tessdata dizini oluşturup Tesseract'ın tu
 2. DWG için ticari kullanım koşulları doğrulanmış dönüştürme/SDK entegrasyonu
 3. Otomatik ölçü tanıma ve otomatik balonlama
 4. OCR Türkçe ve İngilizce traineddata dosyalarının uygun lisans bildirimiyle dağıtım paketine eklenmesi
-5. Otomatik ölçü metni tanıma, ölçü adayı önerme ve kullanıcı onaylı otomatik balonlama
+5. Farklı teknik resim yazı tipleri, tolerans gösterimleri ve gerçek üretim çizimlerinde OCR aday doğruluğunun geniş testlerle iyileştirilmesi; toplu balonlama
 6. DXF için HATCH/SPLINE ve daha kapsamlı teknik çizim varlık desteği
 7. DWG için ticari kullanım koşulları doğrulanmış dönüştürücü/SDK entegrasyonu
 8. Self-contained x64 yayın, gerçek Windows istemci testi ve taşınabilir ZIP
