@@ -17,6 +17,10 @@
 # Mono auto generated files
 mono_crash.*
 
+# Downloaded OCR model files (provided separately under Apache-2.0)
+WAT.DrawingInspector/tessdata/*.traineddata
+WAT.DrawingInspector/tessdata/*.download
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
