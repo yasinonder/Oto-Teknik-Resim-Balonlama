@@ -9,5 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Tesseract" Version="5.2.0" />
+    <PackageReference Include="PDFtoImage" Version="5.4.0" />
   </ItemGroup>
 </Project>
