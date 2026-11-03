@@ -32,7 +32,7 @@ internal static class Program
             file.Entities.Add(new DxfText(
                 new DxfPoint(10, 40, 0), 3.0, "WAT TEST"));
 
-            var block = new DxfBlock("WAT-SYMBOL");
+            var block = new DxfBlock { Name = "WAT-SYMBOL" };
             block.BasePoint = new DxfPoint(0, 0, 0);
             block.Entities.Add(new DxfLine(
                 new DxfPoint(0, 0, 0),
