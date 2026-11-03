@@ -10,6 +10,8 @@
      FontSize="19" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,18,0"/>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
      <Button x:Name="OpenButton" Content="Teknik Resim Aç" Click="Open_Click" Margin="3" Padding="12,7"/>
+     <Button Content="Proje Aç" Click="OpenProject_Click" Margin="3" Padding="10,7"/>
+     <Button Content="Projeyi Kaydet" Click="SaveProject_Click" Margin="3" Padding="10,7"/>
      <Button x:Name="PdfPrevButton" Content="◀ Önceki" Click="PdfPrevious_Click" Margin="3" Padding="10,7" IsEnabled="False"/>
      <TextBlock x:Name="PdfPageText" Text="PDF yok" Foreground="White" VerticalAlignment="Center" Margin="8,0"/>
      <Button x:Name="PdfNextButton" Content="Sonraki ▶" Click="PdfNext_Click" Margin="3" Padding="10,7" IsEnabled="False"/>
