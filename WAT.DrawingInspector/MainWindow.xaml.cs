@@ -629,7 +629,12 @@ public partial class MainWindow : Window
         LowerTolerance = item.LowerTolerance,
         MeasuredValue = item.MeasuredValue,
         Result = item.Result,
-        Notes = item.Notes
+        Notes = item.Notes,
+        DimensionText = item.DimensionText,
+        DimensionLeft = item.DimensionLeft,
+        DimensionTop = item.DimensionTop,
+        DimensionWidth = item.DimensionWidth,
+        DimensionHeight = item.DimensionHeight
     };
 
     private static BalloonItem FromStoredBalloon(StoredBalloon item) => new()
@@ -656,7 +661,12 @@ public partial class MainWindow : Window
         item.LowerTolerance,
         item.MeasuredValue,
         item.Result,
-        item.Notes);
+        item.Notes,
+        item.DimensionText,
+        item.DimensionLeft,
+        item.DimensionTop,
+        item.DimensionWidth,
+        item.DimensionHeight);
 
     private void UpdateBalloonSelectionVisuals()
     {
