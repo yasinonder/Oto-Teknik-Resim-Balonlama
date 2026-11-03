@@ -1071,6 +1071,11 @@ public sealed class BalloonItem : INotifyPropertyChanged
     private string _measuredValue = string.Empty;
     private string _result = "Beklemede";
     private string _notes = string.Empty;
+    private string _dimensionText = string.Empty;
+    private double _dimensionLeft = -1;
+    private double _dimensionTop = -1;
+    private double _dimensionWidth;
+    private double _dimensionHeight;
 
     public int Number
     {
@@ -1131,6 +1136,17 @@ public sealed class BalloonItem : INotifyPropertyChanged
         get => _notes;
         set => SetField(ref _notes, value ?? string.Empty);
     }
+
+    public string DimensionText
+    {
+        get => _dimensionText;
+        set => SetField(ref _dimensionText, value ?? string.Empty);
+    }
+
+    public double DimensionLeft { get => _dimensionLeft; set => SetField(ref _dimensionLeft, value); }
+    public double DimensionTop { get => _dimensionTop; set => SetField(ref _dimensionTop, value); }
+    public double DimensionWidth { get => _dimensionWidth; set => SetField(ref _dimensionWidth, value); }
+    public double DimensionHeight { get => _dimensionHeight; set => SetField(ref _dimensionHeight, value); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
