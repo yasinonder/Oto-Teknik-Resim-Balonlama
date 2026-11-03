@@ -812,6 +812,56 @@ public partial class MainWindow : Window
         StatusText.Text = "Geçerli sayfanın balonları temizlendi.";
     }
 
+    private void ExportExcel_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_sourceDisplayName))
+        {
+            MessageBox.Show("Önce bir PDF, DXF veya görsel açın.", "Excel raporu",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var defaultName = Path.GetFileNameWithoutExtension(_sourceDisplayName) + "-olcum-raporu.xlsx";
+        var dialog = new SaveFileDialog
+        {
+            Filter = "Excel çalışma kitabı|*.xlsx",
+            FileName = defaultName,
+            AddExtension = true,
+            DefaultExt = ".xlsx"
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            var balloonsByPage = new Dictionary<int, List<StoredBalloon>>();
+            if (_pdfPath is not null)
+            {
+                SaveCurrentPdfAnnotations();
+                foreach (var page in _pdfPageBalloons)
+                    balloonsByPage[page.Key] = page.Value.Select(ToStoredBalloon).ToList();
+            }
+            else
+            {
+                balloonsByPage[0] = _balloons.Select(ToStoredBalloon).ToList();
+            }
+
+            InspectionReportService.ExportExcel(
+                dialog.FileName,
+                _sourceDisplayName,
+                balloonsByPage);
+
+            StatusText.Text = $"Excel raporu oluşturuldu: {Path.GetFileName(dialog.FileName)}; " +
+                $"{balloonsByPage.Sum(page => page.Value.Count)} balon kaydı dışa aktarıldı.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Excel raporu oluşturulamadı",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText.Text = "Excel raporu oluşturulamadı.";
+        }
+    }
+
     private static string FormatBalloonCsvRow(int? pageNumber, StoredBalloon balloon)
     {
         static string Cell(string? value)
