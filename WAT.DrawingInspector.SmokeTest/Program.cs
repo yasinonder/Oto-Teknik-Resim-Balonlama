@@ -11,6 +11,7 @@ internal static class Program
     private static int Main()
     {
         var path = Path.Combine(Path.GetTempPath(), $"wat-dxf-smoke-{Guid.NewGuid():N}.dxf");
+        var projectPath = path + ".watproj";
         try
         {
             var file = new DxfFile();
@@ -102,12 +103,51 @@ internal static class Program
             Console.WriteLine(
                 $"DXF smoke test passed: {rendered.SupportedEntityCount} entities including a transformed block and dimension; " +
                 $"{rendered.PixelWidth}x{rendered.PixelHeight}px; {rendered.PngBytes.Length} bytes.");
+
+            var expectedBalloons = new Dictionary<int, List<StoredBalloon>>
+            {
+                [0] = new() { new StoredBalloon(1, 40.5, 80.25), new StoredBalloon(2, 120.0, 200.0) },
+                [1] = new() { new StoredBalloon(1, 5.0, 6.0) }
+            };
+            var expectedSequences = new Dictionary<int, int> { [0] = 3, [1] = 2 };
+
+            ProjectFileService.Save(
+                projectPath,
+                path,
+                "wat-smoke.dxf",
+                currentPageIndex: 1,
+                expectedBalloons,
+                expectedSequences);
+
+            var loadedProject = ProjectFileService.Load(projectPath);
+            var sourceMatches = File.ReadAllBytes(path).SequenceEqual(loadedProject.SourceBytes);
+            var balloonsMatch =
+                loadedProject.BalloonsByPage.Count == expectedBalloons.Count &&
+                loadedProject.BalloonsByPage[0].SequenceEqual(expectedBalloons[0]) &&
+                loadedProject.BalloonsByPage[1].SequenceEqual(expectedBalloons[1]);
+            var sequencesMatch =
+                loadedProject.NextNumbersByPage.Count == expectedSequences.Count &&
+                loadedProject.NextNumbersByPage[0] == 3 &&
+                loadedProject.NextNumbersByPage[1] == 2;
+
+            if (loadedProject.SourceFileName != "wat-smoke.dxf" ||
+                loadedProject.SourceExtension != ".dxf" ||
+                loadedProject.CurrentPageIndex != 1 ||
+                !sourceMatches || !balloonsMatch || !sequencesMatch)
+                throw new InvalidOperationException("SQLite project save/load round-trip did not preserve source drawing and page annotations.");
+
+            Console.WriteLine(
+                $"SQLite project smoke test passed: embedded {loadedProject.SourceBytes.Length} source bytes; " +
+                $"{loadedProject.BalloonsByPage.Sum(p => p.Value.Count)} balloons on " +
+                $"{loadedProject.BalloonsByPage.Count} pages.");
             return 0;
         }
         finally
         {
             if (File.Exists(path))
                 File.Delete(path);
+            if (File.Exists(projectPath))
+                File.Delete(projectPath);
         }
     }
 }
