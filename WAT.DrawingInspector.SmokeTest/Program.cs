@@ -38,8 +38,19 @@ internal static class Program
                 throw new InvalidOperationException(
                     "OCR dimension candidate recognition must keep one unambiguous diameter/tolerance line and skip multi-value/low-confidence lines.");
 
+            var noteWords = new[]
+            {
+                new OcrWord("MAX", 10, 260, 24, 10, 96),
+                new OcrWord("0,34", 40, 260, 25, 10, 96),
+                new OcrWord("DIN", 10, 290, 18, 10, 96),
+                new OcrWord("EN", 32, 290, 15, 10, 96),
+                new OcrWord("50347", 52, 290, 35, 10, 96)
+            };
+            if (DimensionCandidateService.FindCandidates(noteWords).Count != 0)
+                throw new InvalidOperationException("OCR dimension filter must reject general note text and standards labels.");
+
             Console.WriteLine(
-                $"OCR dimension candidate smoke test passed: one reviewed candidate '{candidates[0].OcrText}' at %{candidates[0].Confidence:0} confidence.");
+                $"OCR dimension candidate smoke test passed: one reviewed candidate '{candidates[0].OcrText}' at %{candidates[0].Confidence:0}; note text filtered.");
 
             var visual = new DrawingVisual();
             using (var drawing = visual.RenderOpen())
@@ -177,7 +188,7 @@ internal static class Program
             {
                 [0] = new()
                 {
-                    new StoredBalloon(1, 40.5, 80.25, "Delik çapı", "10.000", "+0.015", "-0.000", "10.008", "Uygun", "Mastar ile kontrol"),
+                    new StoredBalloon(1, 40.5, 80.25, "Delik çapı", "10.000", "+0.015", "-0.000", "10.008", "Uygun", "Mastar ile kontrol", "Ø10 H7", 300, 400, 52, 18),
                     new StoredBalloon(2, 120.0, 200.0, "Mil çapı", "25.000", "+0.020", "-0.020", "25.035", "Uygun Değil", "Üst limit aşıldı")
                 },
                 [1] = new()
@@ -225,12 +236,13 @@ internal static class Program
             using (var workbook = new XLWorkbook(excelPath))
             {
                 var worksheet = workbook.Worksheet("Ölçüm Raporu");
-                if (worksheet.Cell(6, 3).GetString() != "Delik çapı" ||
+                if (worksheet.Cell(6, 11).GetString() != "Ø10 H7" ||
+                    worksheet.Cell(6, 3).GetString() != "Delik çapı" ||
                     worksheet.Cell(6, 8).GetString() != "Uygun" ||
                     worksheet.Cell(7, 8).GetString() != "Uygun Değil" ||
                     worksheet.Cell(8, 3).GetString() != "Yüzey mesafesi" ||
                     worksheet.Cell(8, 8).GetString() != "Beklemede")
-                    throw new InvalidOperationException("Excel report did not preserve balloon measurement results.");
+                    throw new InvalidOperationException("Excel report did not preserve balloon measurement results and linked drawing dimension.");
 
                 if (!File.Exists(excelPath) || new FileInfo(excelPath).Length < 1000)
                     throw new InvalidOperationException("Excel report file is missing or unexpectedly small.");
